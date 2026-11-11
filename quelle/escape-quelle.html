@@ -171,12 +171,12 @@ const fracH=t=>t.includes('/')?F(...t.split('/')):t;
 let BOOKS=[],GLASSES=[],CODE='',DOOR_ORDER=[],TAKTE=[],TAKT_SOL=[],P=null;
 const third=v=>Math.abs(v*3-Math.round(v*3))<1e-9&&Math.abs(v*100-Math.round(v*100))>1e-9;
 const gapOK=(x,y)=>Math.abs(x-y)>=((third(x)||third(y))?.003:.0099);
-function genPuzzle(seed){
+function genPuzzle(seed,level='grund'){
   const R=mulberry32(seed),ri=(a,b)=>a+Math.floor(R()*(b-a+1)),pick=a=>a[Math.floor(R()*a.length)],
     shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
-  const P={seed};
+  const P={seed,level};const ERW=level==='erw';
   /* ROT: Bücher ordnen – Buchstaben ergeben ein Zahlwort */
-  P.red=ri(2,9);const n=6,pad=n-WORDS[P.red].length,left=ri(0,pad),word='✦'.repeat(left)+WORDS[P.red]+'✦'.repeat(pad-left);
+  P.red=ERW?ri(2,9):pick([2,3,4,5,8,9]);const n=ERW?6:4,pad=n-WORDS[P.red].length,left=ri(0,pad),word='✦'.repeat(left)+WORDS[P.red]+'✦'.repeat(pad-left);
   const BD=[2,3,4,5,8,10,20];const fr=[];for(const b of BD)for(let a=1;a<b*1.2;a++)if(gcd(a,b)===1){const v=a/b;if(v>=.15&&v<=1.1)fr.push({a,b,v})}
   let books=null;
   for(let tries=0;tries<2000&&!books;tries++){
@@ -204,10 +204,14 @@ function genPuzzle(seed){
   /* BLAU: Gläser */
   const cols=[0xff5577,0xffc23d,0x8be04e,0xc77dff];
   const rep12=v=>{const g=gcd(v,12),o=[`${v/g}/${12/g}`];if(g>1)o.push(`${v}/12`);if(R()<.4)o.push(`${v*2}/24`);if(v%3===0)o.push(fmtD(v/12),`${v/12*100} %`);return pick(o)};
-  for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,4),ui=ri(0,3),u=vals[ui];if(![2,3,4,6,8,9,10].includes(u))continue;
+  if(ERW){const c6=[0xff5577,0xffc23d,0x8be04e,0xc77dff,0x38bdf8,0xfb923c];
+   for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,6),k=ri(3,4),idx=shuffle([0,1,2,3,4,5]).slice(0,k),T=idx.reduce((a,i)=>a+vals[i],0);if(T>12||T<7)continue;
+    let cnt=0;for(let m=1;m<64;m++){let s=0;for(let i=0;i<6;i++)if(m>>i&1)s+=vals[i];if(s===T)cnt++}if(cnt!==1)continue;
+    P.glasses=vals.map((v,i)=>({v,t:rep12(v),c:c6[i]}));P.T=T;P.used=idx.sort((a,b)=>a-b);P.blue=ri(2,9);break}}
+  else for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,4),ui=ri(0,3),u=vals[ui];if(![2,3,4,6,8,9,10].includes(u))continue;
     const T=vals.reduce((a,b)=>a+b,0)-u;if(T>11||T<5)continue;
     let cnt=0;for(let mask=1;mask<16;mask++){let s=0;for(let i=0;i<4;i++)if(mask>>i&1)s+=vals[i];if(s===T)cnt++}if(cnt!==1)continue;
-    P.glasses=vals.map((v,i)=>({v,t:i===ui?(R()<.6?`${v}/12`:`${v*2}/24`):rep12(v),c:cols[i]}));P.T=T;P.unused=ui;P.blue=12/gcd(u,12);break}
+    P.glasses=vals.map((v,i)=>({v,t:i===ui?(R()<.6?`${v}/12`:`${v*2}/24`):rep12(v),c:cols[i]}));P.T=T;P.unused=ui;P.used=[0,1,2,3].filter(i=>i!==ui);P.blue=12/gcd(u,12);break}
   /* GRÜN: Kreismodell über dem Spiegel */
   for(;;){P.green=ri(2,9);const k=ri(1,3),m=P.green*k;if(m>=4&&m<=16){P.plateM=m;P.plateK=k;P.plateStart=ri(0,m-1);break}}
   /* GELB: Quittung + Roboter-Akku */
@@ -217,15 +221,15 @@ function genPuzzle(seed){
     const it=pick(['Mikroskop «Zoom 3000»','Zentrifuge «Spin X»','Laborwaage «Exakt»','Bunsenbrenner-Set «Flamme»']);
     Object.assign(P,{price:pr,fa:a,fb:b,fT:`${a*ex}/${b*ex}`,variant,final:own,item:it});break}
   /* VIOLETT: Klavier – jeder Takt = 1 Ganzes */
-  const GN={2:'e',4:'q',8:'h'},FN={8:'h',4:'q',2:'e'};
-  for(;;){const gaps=[pick([2,4,8]),pick([2,4,8]),pick([2,4,8])],v8=gaps.reduce((a,b)=>a+b,0)/2;if(v8<3||v8>9)continue;
+  const GN={1:'s',2:'e',4:'q',8:'h'},FN={8:'h',4:'q',2:'e',1:'s'};const GO=ERW?[1,2,4,8]:[2,4,8],FO=ERW?[8,4,2,1]:[8,4,2],TMAX=ERW?5:4;
+  for(;;){const gaps=[pick(GO),pick(GO),pick(GO)];if(ERW&&!gaps.includes(1)&&R()<.6)continue;
     const takte=[];let ok=true;
     for(const g of gaps){let r=16-g,tok=[],gd=0,ss=false;
-      while(r>0&&gd++<40){const opts=[8,4,2].filter(x=>x<=r);const x=pick(opts);tok.push(FN[x]);r-=x}
-      if(r!==0||tok.length<2||tok.length>4){ok=false;break}
+      while(r>0&&gd++<40){const opts=FO.filter(x=>x<=r);const x=pick(opts);tok.push(FN[x]);r-=x}
+      if(r!==0||tok.length<2||tok.length>TMAX){ok=false;break}
       const notes=[];shuffle(tok).forEach(t=>t==='ss'?notes.push('s','s'):notes.push(t));notes.splice(ri(1,notes.length),0,null);takte.push(notes)}
     if(!ok)continue;
-    P.takte=takte;P.taktSol=gaps.map(g=>GN[g]);P.violet=v8;break}
+    P.takte=takte;P.taktSol=gaps.map(g=>GN[g]);P.violet=ri(2,9);P.noteUI=ERW?['w','h','q','e','s']:['w','h','q','e'];break}
   const scale=[523.25,587.33,659.25,698.46,783.99,880,987.77,1046.5];let pi=ri(0,4);
   P.melody=P.takte.map(t=>t.map(()=>{pi=Math.max(0,Math.min(7,pi+pick([-2,-1,-1,1,1,2])));return scale[pi]}));
   /* Tür */
@@ -268,6 +272,7 @@ function setPuzzle(p){
   const M=P.plateM;
   NOTES.plate={t:'Messingscheibe über dem Spiegel',h:`<p>Über dem Spiegel hängt eine runde Messingscheibe, in gleich grosse Stücke geteilt. Ein Teil der Scheibe ist blank poliert:</p><svg viewBox="0 0 200 200" style="width:220px;display:block;margin:auto"><circle cx="100" cy="100" r="96" fill="#8a6a2a"/>${Array.from({length:M},(_,i)=>{const a1=i/M*Math.PI*2-Math.PI/2,a2=(i+1)/M*Math.PI*2-Math.PI/2;const on=((i-P.plateStart+M)%M)<P.plateK;return `<path d="M100,100 L${100+84*Math.cos(a1)},${100+84*Math.sin(a1)} A84,84 0 0 1 ${100+84*Math.cos(a2)},${100+84*Math.sin(a2)} Z" fill="${on?'#ffe9a8':'#6e5220'}" stroke="#3a2a10" stroke-width="3"/>`}).join('')}</svg>`};
   NOTES.piano={t:'Gravur im Klavierdeckel',h:`<div class="note">Im Deckel des Klaviers leuchtet eine violette Gravur:<br><br><span style="font-size:2.4rem;color:#7e22ce">♪ Violett = ${P.violet} ♪</span></div>`};
+  NOTES.notebook={t:'Notizbuch aus der Schublade',h:`<div class="note">Labortagebuch, S. 34:<br><br>«Die blaue Lösung: Füllt den Messzylinder <u>genau</u> bis zur blauen Markierung. Jedes Glas ganz oder gar nicht!<br>${P.level==='erw'?'Wenn es stimmt, verrät euch der Zylinder die blaue Ziffer.»':'Schreibt den Anteil des Glases, das übrig bleibt, als <u>vollständig gekürzten</u> Bruch. Sein <b>Nenner</b> ist die blaue Ziffer.»'}</div>`};
   NOTES.mosaic={t:'Gravur am Mosaik-Rahmen',h:`<div class="note">Unten am Rahmen des Bruchbilds ist eingraviert:<br><br>«Orange = der <b>Nenner</b> des <u>weissen</u> Anteils – vollständig gekürzt.»</div>`};
   NOTES.laptop={t:'Nachricht auf dem Laptop',h:`<div class="screen">&gt; Login erfolgreich.<br><br>&gt; Notiz an mich: Die gelbe Ziffer ist die Anzahl <b>Viertelstunden</b>, die mein Roboter Robbi mit <b>vollem Akku</b> durchhält.</div>`};
   const fb=P.books.filter(b=>b.t.includes('/')).sort((x,y)=>+y.t.split('/')[1]-+x.t.split('/')[1])[0];
@@ -277,7 +282,8 @@ function setPuzzle(p){
   H.glaeser.h[1]=`Rechnet alle Gläser in Zwölftel um. Die blaue Markierung liegt bei ${P.T}/12. Welche Gläser ergeben zusammen genau so viel?`;
   H.gelb.h[1]=`${P.variant==='A'?`Der Professor hat ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''} bezahlt.`:`Die Schule zahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''}, der Professor also den Rest: ${P.fb-P.fa}/${P.fb}.`} Rechnet zuerst ${P.price} Fr. : ${P.fb}, dann mal ${P.variant==='A'?P.fa:P.fb-P.fa}. Danach: Robbis Akku zeigt ${P.batL} von ${P.batB} Balken für ${P.batR} Minuten.`;
   H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. 25/100 = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
-  H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = 8/8. Jeder Takt muss genau ein Ganzes ergeben.`;
+  const E=P.level==='erw';H.klavier.h[0]=E?'Jeder Takt muss zusammen genau 1 Ganzes ergeben. Rechnet alle Notenwerte in Sechzehntel um: Halbe = 8/16, Viertel = 4/16, Achtel = 2/16, Sechzehntel = 1/16.':'Jeder Takt muss zusammen genau 1 Ganzes ergeben. Rechnet alle Notenwerte in Achtel um: Halbe = 4/8, Viertel = 2/8, Achtel = 1/8.';
+  H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>E?({h:'8/16',q:'4/16',e:'2/16',s:'1/16'})[k]:({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = ${E?'16/16':'8/8'}. Jeder Takt muss genau ein Ganzes ergeben.`;
 }
 
 /* ======================= Zustand ======================= */
@@ -616,11 +622,11 @@ function pianoUI(){
   const sel=[null,null,null];let act=0,playing=false;
   const draw=body=>{
     body.innerHTML=`<p>Auf dem Notenständer liegt ein Notenblatt. In jedem Takt fehlt eine Note. Oben steht: <b>«Jeder Takt = 1 Ganzes»</b>, darunter eine Legende:</p>
-    <div class="legend">${NOTE_UI.map(k=>{const v=NOTEV[k];return `<div>${noteSVG(k,40)}<span>${v[2]}</span><small>${v[1]}</small></div>`}).join('')}</div>
-    <p class="muted" style="font-size:.85rem;margin:.4em 0">Tipp: Halbe, Viertel und Achtel zusammenzählen – was fehlt bis zu einem Ganzen?</p>
+    <div class="legend">${P.noteUI.map(k=>{const v=NOTEV[k];return `<div>${noteSVG(k,40)}<span>${v[2]}</span><small>${v[1]}</small></div>`}).join('')}</div>
+    <p class="muted" style="font-size:.85rem;margin:.4em 0">Tipp: Rechnet alle Noten in ${P.level==='erw'?'Sechzehntel':'Achtel'} um – was fehlt bis zu einem Ganzen?</p>
     <div class="takte">${TAKTE.map((t,ti)=>`<div class="takt"><span class="tn">Takt ${ti+1}</span>${t.map(k=>k?`<span class="nn">${noteSVG(k)}</span>`:`<button class="gap${act===ti?' act':''}${sel[ti]?' set':''}" data-gap="${ti}">${sel[ti]?noteSVG(sel[ti]):'?'}</button>`).join('')}<span class="bar"></span></div>`).join('')}</div>
     <p style="margin:.6em 0 .3em">Note für <b>Takt ${act+1}</b> wählen:</p>
-    <div class="palette">${NOTE_UI.map(k=>`<button data-n="${k}" title="${NOTEV[k][1]}">${noteSVG(k,42)}</button>`).join('')}</div>`;
+    <div class="palette">${P.noteUI.map(k=>`<button data-n="${k}" title="${NOTEV[k][1]}">${noteSVG(k,42)}</button>`).join('')}</div>`;
     body.querySelectorAll('[data-gap]').forEach(b=>b.onclick=()=>{act=+b.dataset.gap;draw(body)});
     body.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{sel[act]=b.dataset.n;tone(PITCH[['G5','E5','C5'][act]],.3,'triangle',.1);if(act<2&&!sel[act+1])act++;draw(body)})};
   openPanel('🎹 Klavier','',[{label:'Abbrechen'},{label:'▶ Melodie spielen',cls:'primary',keep:true,fn:()=>{
@@ -681,7 +687,7 @@ function applyPuzzle3D(){
     const m=new THREE.Mesh(new THREE.BoxGeometry(.24,b.h,.32),[side,side,side,side,std(0xffffff,{map:spineTex(i,false)}),side]);m.position.y=b.h/2;shelfGrpRef.add(m);bookMeshes[i]=m});
   // Gläser
   clearGroup(flaskGrp);
-  GLASSES.forEach((gl,i)=>{const x=-.85+i*.38;
+  GLASSES.forEach((gl,i)=>{const x=GLASSES.length>4?-.98+i*.29:-.85+i*.38;
     const fl=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,.26,20),glassMat);fl.position.set(x,1.06,.12);flaskGrp.add(fl);
     const lh=.24*gl.v/12;const lq=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,lh,20),new THREE.MeshStandardMaterial({color:gl.c,emissive:gl.c,emissiveIntensity:.25,transparent:true,opacity:.85}));lq.position.set(x,.94+lh/2,.12);flaskGrp.add(lq);
     const lt=tex(128,128,(c,w,h)=>{c.fillStyle='#fff';c.fillRect(0,0,w,h);c.strokeStyle='#333';c.lineWidth=4;c.strokeRect(2,2,w-4,h-4);drawVal(c,gl.t,w/2,h/2,gl.t.includes('/')?40:36,'#111')});
@@ -830,7 +836,7 @@ function clockUI(){
 
 /* ---------- Gläser ---------- */
 function flaskUI(){
-  if(S.f.flasks){openPanel('⚗️ Labortisch','<p>Der Messzylinder ist genau bis zur blauen Markierung gefüllt. Die Flüssigkeit leuchtet geheimnisvoll <b style="color:#3b82f6">blau</b>.</p><p>Übrig geblieben ist das Glas mit der Aufschrift '+fracH(GLASSES[P.unused].t)+'.</p>',[{label:'OK',cls:'primary'}]);return}
+  if(S.f.flasks){openPanel('⚗️ Labortisch','<p>Der Messzylinder ist genau bis zur blauen Markierung gefüllt. Die Flüssigkeit leuchtet geheimnisvoll <b style="color:#3b82f6">blau</b>.</p>'+(P.level==='erw'?'<p>Am Boden des Zylinders leuchtet eine Ziffer auf:</p><div style="text-align:center;font-size:2.4rem;font-weight:700;color:#3b82f6">Blau = '+P.blue+'</div>':'<p>Übrig geblieben ist das Glas mit der Aufschrift '+fracH(GLASSES[P.unused].t)+'.</p>'),[{label:'OK',cls:'primary'}]);return}
   const sel=new Set();let level=0,busy=false,myId;
   const draw=body=>{
     body.innerHTML=`<p>Vier Gläser mit bunten Flüssigkeiten. Jedes Glas ist <b>genau gleich gross</b> wie der ganze Messzylinder – aber nur zum angeschriebenen Anteil gefüllt. Am Messzylinder klebt ein Streifen mit einer <b style="color:#3b82f6">blauen Markierung</b>.</p>
@@ -893,7 +899,7 @@ function solvedCount(){const f=S.f;return [f.books,f.clock,f.flasks,f.mirror,f.l
 function win(){S.end=Date.now();save();anim.door.userData.open=true;confetti(150);renderHUD();setTimeout(finishUI,1800)}
 function finishUI(){
   const e=elapsed(),inTime=!S.limit||e<=S.limit*60,hints=Object.values(S.hint).reduce((a,b)=>a+b,0),d=new Date(S.end);
-  openPanel('🎉 Ausgebrochen!',`<div class="cert"><div class="muted">ESCAPE-ZERTIFIKAT · LABOR VON PROF. QUOTIENTIA</div><h2 style="font-size:1.7rem;margin:.3em 0">${esc(S.team)}</h2>
+  openPanel('🎉 Ausgebrochen!',`<div class="cert"><div class="muted">ESCAPE-ZERTIFIKAT · LABOR VON PROF. QUOTIENTIA · Stufe ${S.level==='erw'?'Erweitert':'Grundlegend'}</div><h2 style="font-size:1.7rem;margin:.3em 0">${esc(S.team)}</h2>
    <p>${solvedCount()===7?'Alle Rätsel gelöst':`${solvedCount()} von 7 Rätseln gelöst`} und die Labortür geöffnet${S.limit?(inTime?' – <b style="color:var(--ok)">innerhalb der Zeit!</b>':' – leider nach Ablauf der Zeit.'):'.'}</p>
    <div class="stats"><div class="stat"><b>${mmss(e)}</b>Zeit inkl. Strafen</div><div class="stat"><b>${hints}</b>Tipps</div><div class="stat"><b>${S.wrong+S.doorWrong}</b>Fehlversuche</div></div>
    ${S.solView?'<p style="margin-top:12px"><span class="flag">⚠ Lösungen wurden eingesehen</span></p>':''}
@@ -918,11 +924,11 @@ function notesUI(){
 let pinOK=false;
 function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.includes('/')?` (${fmtD(Math.round(b.v*1000)/1000)}${Math.abs(b.v*1000-Math.round(b.v*1000))>1e-9?'…':''})`:''}`).join(' &lt; ');
   const gl=P.glasses.map((g,i)=>i===P.unused?null:(g.t===`${g.v}/12`?g.t:`${g.t} (= ${g.v}/12)`)).filter(Boolean).join(' + ');const u=P.glasses[P.unused];
-  const gn={e:'Achtel',q:'Viertel',h:'Halbe'};
+  const gn={s:'Sechzehntel',e:'Achtel',q:'Viertel',h:'Halbe'};
   return `<p><b>Türcode: <span style="color:var(--acc);font-size:1.4rem;letter-spacing:.15em">${P.code}</span></b> (${P.order.map(c=>`${c} ${P.digits[c]}`).join(' · ')})</p><ol>
     <li><b>Rot (Bücher):</b> Teppich anheben → Zettel. Ordnen: ${bs} → Buchstaben «${WORDS[P.red]}» → <b>${P.red}</b></li>
     <li><b>Schlüssel (Uhr):</b> Bild an der linken Wand → Zettel. ${P.hT} von 12 h = ${P.h} h; ${P.mT} von 60 min = ${P.m} min → Uhr auf <b>${P.h}:${String(P.m).padStart(2,'0')}</b> → Messingschlüssel</li>
-    <li><b>Blau (Gläser):</b> Schlüssel öffnet die Schublade → Notizbuch. ${gl} = ${P.T}/12 (blaue Markierung). Übrig: ${u.t}${u.t===`${u.v}/12`?'':` = ${u.v}/12`} = ${u.v/gcd(u.v,12)}/${12/gcd(u.v,12)} → Nenner <b>${P.blue}</b></li>
+    <li><b>Blau (Gläser):</b> Schlüssel öffnet die Schublade → Notizbuch. ${P.used.map(i=>{const g=P.glasses[i];return g.t===`${g.v}/12`?g.t:`${g.t} (= ${g.v}/12)`}).join(' + ')} = ${P.T}/12 (blaue Markierung). ${P.level==='erw'?`Danach zeigt der Zylinder direkt <b>${P.blue}</b>`:`Übrig: ${P.glasses[P.unused].t} = ${P.glasses[P.unused].v}/12 = ${P.glasses[P.unused].v/gcd(P.glasses[P.unused].v,12)}/${12/gcd(P.glasses[P.unused].v,12)} → Nenner <b>${P.blue}</b>`}</li>
     <li><b>Grün (Spiegel):</b> Spiegelschrift im Spiegel lesen: «Kehrwert des Anteils über dem Spiegel». Scheibe: ${P.plateK} von ${P.plateM} Stücken poliert = ${P.plateK}/${P.plateM} → Kehrwert ${P.plateM}/${P.plateK} = <b>${P.green}</b></li>
     <li><b>Gelb (Laptop + Roboter):</b> Blumentopf → Quittung ${P.price} Fr.; ${P.variant==='A'?`selbst bezahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` (= ${P.fa}/${P.fb})`:''}`:`Schule ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` (= ${P.fa}/${P.fb})`:''}, selbst also ${P.fb-P.fa}/${P.fb}`} → ${P.price} : ${P.fb} · ${P.variant==='A'?P.fa:P.fb-P.fa} = ${P.final} → Passwort <b>${P.final}</b>. Robbi: ${P.batL}/${P.batB} ≙ ${P.batR} min → voll ${P.yellow*15} min = <b>${P.yellow}</b> Viertelstunden</li>
     <li><b>Violett (Klavier):</b> fehlende Noten: ${P.taktSol.map((k,i)=>`Takt ${i+1}: ${gn[k]} (${N16[k]}/16)`).join(' · ')} → Deckel öffnet sich, Gravur zeigt direkt <b>${P.violet}</b></li>
@@ -971,15 +977,16 @@ function startScreen(){
     <div class="row"><label>Zeitlimit<select id="f-limit"><option value="0">ohne (Stoppuhr)</option>${[30,35,40,45,50,55,60,65,70,75,80].map(m=>`<option value="${m}"${m===40?' selected':''}>${m} Minuten</option>`).join('')}</select></label>
     <label>Strafe pro Tipp<select id="f-pen"><option value="0">keine</option>${[1,2,3,4,5,6,7,8,9,10].map(m=>`<option value="${m*60}"${m===3?' selected':''}>+${m} Minute${m>1?'n':''}</option>`).join('')}</select></label>
     <label>Strafe pro falscher Eingabe<select id="f-wpen">${[30,60,90,120,150,180].map(t=>`<option value="${t}"${t===60?' selected':''}>+${t<60?t+' Sekunden':(t%60?Math.floor(t/60)+' Min. 30 s':t/60+' Minute'+(t>60?'n':''))}</option>`).join('')}</select></label></div>
+    <label>Schwierigkeit<select id="f-level"><option value="grund" selected>Grundlegend – 4 Bücher, Noten bis Achtel, 4 Gläser</option><option value="erw">Erweitert – 6 Bücher, Noten bis Sechzehntel, 6 Gläser</option></select></label>
     <label>Grafik<select id="f-q"><option value="high" selected>Hoch – mit Leuchteffekten</option><option value="low">Einfach – für ältere iPads</option></select></label>
     ${saved?`<button class="btn primary" id="resume">▶ Weiterspielen: ${esc(saved.team)}</button><button class="btn" id="go">🚀 Neues Spiel starten</button>`:'<button class="btn primary" id="go">🚀 Labor betreten</button>'}</div></div>
   <div class="card"><b>Steuerung</b><div class="ctl" style="margin-top:8px">
    <span>📱 iPad</span><span>Links auf dem Bildschirm ziehen = gehen · rechts ziehen = umschauen · Gegenstand antippen = untersuchen</span>
    <span>💻 Computer</span><span>W A S D oder Pfeiltasten = gehen · Maus ziehen = umschauen · Klick = untersuchen</span></div>
    <p class="muted" style="font-size:.85rem;margin-bottom:0">Ihr müsst nah genug an einem Gegenstand stehen, um ihn zu untersuchen. Gefundene Notizen findet ihr jederzeit unter 📜.</p></div></div>`;
-  const go=()=>{ac();const seed=(Math.random()*2147483647)|0;setPuzzle(genPuzzle(seed));S=fresh($('#f-team').value.trim(),+$('#f-limit').value,+$('#f-pen').value);S.seed=seed;S.wpen=+$('#f-wpen').value;S.books=P.bookStart.slice();S.quality=$('#f-q').value;save();enter(true)};
+  const go=()=>{ac();const seed=(Math.random()*2147483647)|0,lv=$('#f-level').value;setPuzzle(genPuzzle(seed,lv));S=fresh($('#f-team').value.trim(),+$('#f-limit').value,+$('#f-pen').value);S.seed=seed;S.level=lv;S.wpen=+$('#f-wpen').value;S.books=P.bookStart.slice();S.quality=$('#f-q').value;save();enter(true)};
   $('#go').onclick=()=>{if(!saved)return go();uiOpen=true;$('#start').style.display='none';openPanel('Neues Spiel starten?',`<p>Auf diesem Gerät gibt es einen Spielstand von <b>${esc(saved.team)}</b>. Er wird gelöscht.</p>`,[{label:'Abbrechen',fn:()=>{uiOpen=true;$('#start').style.display='flex'}},{label:'Neues Spiel',cls:'danger',fn:go}]);$('#ov [data-close]').onclick=()=>{closePanel();uiOpen=true;$('#start').style.display='flex'}};
-  const r=$('#resume');if(r)r.onclick=()=>{ac();setPuzzle(genPuzzle(saved.seed));if(saved.books.length!==P.books.length)saved.books=P.bookStart.slice();S=saved;enter(false)};
+  const r=$('#resume');if(r)r.onclick=()=>{ac();setPuzzle(genPuzzle(saved.seed,saved.level||'erw'));if(saved.books.length!==P.books.length)saved.books=P.bookStart.slice();S=saved;enter(false)};
 }
 function enter(intro){
   $('#start').style.display='none';setupQuality(S.quality!=='low');if(innerHeight>innerWidth)pitch=-.18;applyState();renderHUD();uiOpen=false;
