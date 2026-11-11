@@ -4061,7 +4061,7 @@ void main() {
     <div class="row"><label>Zeitlimit<select id="f-limit"><option value="0">ohne (Stoppuhr)</option>${[30,35,40,45,50,55,60,65,70,75,80].map(n=>`<option value="${n}"${n===40?" selected":""}>${n} Minuten</option>`).join("")}</select></label>
     <label>Strafe pro Tipp<select id="f-pen"><option value="0">keine</option>${[1,2,3,4,5,6,7,8,9,10].map(n=>`<option value="${n*60}"${n===3?" selected":""}>+${n} Minute${n>1?"n":""}</option>`).join("")}</select></label>
     <label>Strafe pro falscher Eingabe<select id="f-wpen">${[30,60,90,120,150,180].map(n=>`<option value="${n}"${n===60?" selected":""}>+${n<60?n+" Sekunden":n%60?Math.floor(n/60)+" Min. 30 s":n/60+" Minute"+(n>60?"n":"")}</option>`).join("")}</select></label></div>
-    <label>Schwierigkeit<select id="f-level"><option value="grund" selected>Grundlegend \u2013 4 B\xFCcher, Noten bis Achtel, 4 Gl\xE4ser, Bruchbild 10\xD710</option><option value="erw">Erweitert \u2013 6 B\xFCcher, Noten bis Sechzehntel, 6 Gl\xE4ser, Bruchbild 12\xD712</option></select></label>
+    <label>Schwierigkeit<select id="f-level"><option value="grund" selected>Grundlegend</option><option value="erw">Erweitert</option></select></label>
     <label>Grafik<select id="f-q"><option value="high" selected>Hoch \u2013 mit Leuchteffekten</option><option value="low">Einfach \u2013 f\xFCr \xE4ltere iPads</option></select></label>
     ${i?`<button class="btn primary" id="resume">\u25B6 Weiterspielen: ${Ys(i.team)}</button><button class="btn" id="go">\u{1F680} Neues Spiel starten</button>`:'<button class="btn primary" id="go">\u{1F680} Labor betreten</button>'}</div></div>
   <div class="card"><b>Steuerung</b><div class="ctl" style="margin-top:8px">
