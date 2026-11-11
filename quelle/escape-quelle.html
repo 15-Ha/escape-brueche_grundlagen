@@ -232,14 +232,14 @@ function genPuzzle(seed){
   /* ORANGE: Bruchbild-Mosaik */
   const MCOL=shuffle(['#7bc0e3','#f6e27a','#f0a988','#d6df9e','#5b9fd6','#e8cfa0','#f2a6b3','#b9a6e8']);
   for(let tries=0;tries<5000;tries++){
-    const G=12,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
+    const G=10,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
     while(rects.length<target&&guard++<60){const cand=rects.filter(r=>r.w>=2||r.h>=2);if(!cand.length)break;const r=pick(cand);
       const vert=r.w>=2&&(r.h<2||r.w>r.h||(r.w===r.h&&R()<.5)),side=vert?r.w:r.h;
       const cuts=[];if(side%2===0)cuts.push(side/2,side/2);if(side%3===0)cuts.push(side/3,2*side/3);if(!cuts.length||R()<.25)cuts.push(ri(1,side-1));const c=pick(cuts);
       rects.splice(rects.indexOf(r),1);if(vert)rects.push({x:r.x,y:r.y,w:c,h:r.h},{x:r.x+c,y:r.y,w:r.w-c,h:r.h});else rects.push({x:r.x,y:r.y,w:r.w,h:c},{x:r.x,y:r.y+c,w:r.w,h:r.h-c})}
     if(rects.some(r=>r.w*r.h<2))continue;
     let regs=rects.map(r=>({t:'r',...r,a:r.w*r.h}));
-    const sq=regs.filter(r=>r.w===r.h&&r.w>=2);
+    const sq=regs.filter(r=>r.w===r.h&&r.w>=2&&r.w%2===0);
     if(sq.length&&R()<.85){const q=pick(sq);regs.splice(regs.indexOf(q),1);const d=R()<.5?[[0,1,3],[1,2,3]]:[[0,1,2],[0,2,3]];d.forEach(cs=>regs.push({t:'t',x:q.x,y:q.y,w:q.w,h:q.h,cs,a:q.w*q.h/2}))}
     if(regs.length<5||regs.length>7)continue;
     regs=shuffle(regs);const nw=regs.length>=7?2:pick([1,1,2]);
@@ -275,7 +275,7 @@ function setPuzzle(p){
   H.uhr.h[1]=`${P.hT} lässt sich kürzen. Ein halber Tag hat 12 Stunden. Und ${P.mT} einer Stunde sind … Minuten (1 Stunde = 60 Minuten).`;
   H.glaeser.h[1]=`Rechnet alle Gläser in Zwölftel um. Die blaue Markierung liegt bei ${P.T}/12. Welche Gläser ergeben zusammen genau so viel?`;
   H.gelb.h[1]=`${P.variant==='A'?`Der Professor hat ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''} bezahlt.`:`Die Schule zahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''}, der Professor also den Rest: ${P.fb-P.fa}/${P.fb}.`} Rechnet zuerst ${P.price} Fr. : ${P.fb}, dann mal ${P.variant==='A'?P.fa:P.fb-P.fa}. Danach: Robbis Akku zeigt ${P.batL} von ${P.batB} Balken für ${P.batR} Minuten.`;
-  H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. 36/144 = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
+  H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. 25/100 = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
   H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = 8/8. Danach: die drei fehlenden Noten zusammenzählen und in Achteln angeben.`;
 }
 
