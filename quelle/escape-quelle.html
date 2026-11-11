@@ -316,7 +316,9 @@ let composer=null;
 function setupQuality(high){renderer.setPixelRatio(high?Math.min(devicePixelRatio,1.5):1);renderer.setSize(innerWidth,innerHeight);
   if(high){const pr=renderer.getPixelRatio();composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(innerWidth*pr,innerHeight*pr,{type:THREE.HalfFloatType,samples:4}));composer.addPass(new RenderPass(scene,camera));composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.45,.4,.93));composer.addPass(new OutputPass());composer.setSize(innerWidth,innerHeight)}
   else{composer=null;if(mirrorRef)mirrorRef.getRenderTarget().setSize(512,512)}}
-addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);composer&&composer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()});
+function fitCam(){const a=innerWidth/innerHeight;camera.aspect=a;const h=78*Math.PI/180;camera.fov=Math.min(92,Math.max(68,2*Math.atan(Math.tan(h/2)/a)*180/Math.PI));camera.updateProjectionMatrix()}
+fitCam();
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);composer&&composer.setSize(innerWidth,innerHeight);fitCam()});
 
 const W=6,D=5,H=3.2; // Raum: x -6..6, z -5..5
 const obstacles=[]; // {x1,x2,z1,z2}
@@ -758,7 +760,7 @@ function checkMirror(){if(S.notes.includes('wall')&&S.notes.includes('plate')&&!
 function showNote(k){addNote(k);openPanel(NOTES[k].t,NOTES[k].h,[{label:'OK',cls:'primary'}])}
 
 function interact(id){
-  const f=S.f;
+  const f=S.f;S.seen=S.seen||{};if(!S.seen[id]){S.seen[id]=1;save()}
   switch(id){
     case 'letter':showNote('letter');break;
     case 'rug':openPanel('Teppich','<p>Ein schwerer, alter Teppich mit Kreismuster. Ganz schön staubig.</p>',[{label:'OK',cls:'primary'}]);break;
@@ -897,15 +899,18 @@ function finishUI(){
 }
 
 /* ---------- Tipps, Notizen, Lehrperson ---------- */
+const HINT_SEEN={buecher:['books','rugnote'],uhr:['clock','painting'],glaeser:['flasks','drawer'],gruen:['mirror','wall','plate'],gelb:['laptop','robot','plant'],klavier:['piano'],mosaik:['mosaic'],tuer:['door']};
+const START_HINT={k:'start',t:'🔎 Wo anfangen?',h:['Lest zuerst den Brief auf dem Schreibtisch. Untersucht dann alles ganz genau – auch Dinge am Boden, unter Gegenständen und an den Wänden.','Tippt Gegenstände direkt an: Teppichecken, Bilder, Pflanzen, Geräte, Instrumente. Manche Hinweise schauen nur ein kleines Stück hervor. Weitere Tipps erscheinen hier, sobald ihr eine Station entdeckt habt.']};
 function hintUI(){
-  const draw=body=>{body.innerHTML=`<p>Wobei steckt ihr fest? ${S.penalty?`Jeder Tipp kostet <b>+${S.penalty/60} Min.</b> Strafzeit.`:''}</p><div class="hintlist">${HINTS.map((h,i)=>{const n=S.hint[h.k]||0;
+  const draw=body=>{body.innerHTML=`<p>Wobei steckt ihr fest? ${S.penalty?`Jeder Tipp kostet <b>+${S.penalty/60} Min.</b> Strafzeit.`:''}</p><div class="hintlist">${[START_HINT,...HINTS].map((h,i)=>{if(h.k!=='start'&&!(HINT_SEEN[h.k]||[]).some(id=>S.seen&&S.seen[id]))return '';const n=S.hint[h.k]||0;
     return `<div><button class="btn" style="width:100%" data-h="${i}" ${n>=h.h.length?'disabled':''}>${h.t} – ${n>=h.h.length?'alle Tipps gezeigt':`Tipp ${n+1} von ${h.h.length}`}</button>${h.h.slice(0,n).map((t,k)=>`<div class="hint">💡 ${t}</div>`).join('')}</div>`}).join('')}</div>`;
-    body.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{const h=HINTS[+b.dataset.h];S.hint[h.k]=(S.hint[h.k]||0)+1;S.pen+=S.penalty;save();draw(body);renderHUD()})};
+    body.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{const h=[START_HINT,...HINTS][+b.dataset.h];S.hint[h.k]=(S.hint[h.k]||0)+1;S.pen+=S.penalty;save();draw(body);renderHUD()})};
   openPanel('💡 Tipps','',[{label:'Schliessen',cls:'primary'}],draw);
 }
 function notesUI(){
-  if(!S.notes.length){openPanel('📜 Gefundene Notizen','<p class="muted">Noch keine Notizen gefunden.</p>',[{label:'OK',cls:'primary'}]);return}
-  openPanel('📜 Gefundene Notizen',S.notes.map(k=>`<h3 style="margin:14px 0 6px">${NOTES[k].t}</h3>${NOTES[k].h}`).join(''),[{label:'OK',cls:'primary'}]);
+  const ctl=`<p class="muted" style="font-size:.9rem">🎮 ${isTouch?'Links auf dem Bildschirm ziehen = gehen · rechts ziehen = umschauen · Gegenstand antippen = untersuchen (nah genug herangehen!)':'W A S D / Pfeiltasten = gehen · Maus ziehen = umschauen · Klick = untersuchen (nah genug herangehen!)'}</p>`;
+  if(!S.notes.length){openPanel('📜 Gefundene Notizen',ctl+'<p class="muted">Noch keine Notizen gefunden.</p>',[{label:'OK',cls:'primary'}]);return}
+  openPanel('📜 Gefundene Notizen',ctl+S.notes.map(k=>`<h3 style="margin:14px 0 6px">${NOTES[k].t}</h3>${NOTES[k].h}`).join(''),[{label:'OK',cls:'primary'}]);
 }
 let pinOK=false;
 function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.includes('/')?` (${fmtD(Math.round(b.v*1000)/1000)}${Math.abs(b.v*1000-Math.round(b.v*1000))>1e-9?'…':''})`:''}`).join(' &lt; ');
@@ -960,7 +965,7 @@ function startScreen(){
   $('#start').innerHTML=`<div class="in"><div class="hero"><div class="big">🧪</div><h1>Das Labor von <span>Prof. Quotientia</span></h1><p class="muted">3D-Escape-Room · Brüche, Dezimalzahlen, Prozente, Modelle, Kehrwert, Erweitern &amp; Kürzen</p></div>
   <div class="card"><p>Ihr seid im Labor einer verrückten Mathematikerin eingeschlossen. Sucht den Raum ab, findet versteckte Hinweise und knackt den Code der Ausgangstür. <b>Nichts liegt offen herum.</b></p><p class="muted" style="font-size:.9rem">🧠 Alle Rätsel lassen sich im Kopf lösen – ihr braucht keinen Taschenrechner.</p>
    <div class="form"><label>Teamname<input id="f-team" maxlength="30" placeholder="z. B. Die Bruchpiloten"></label>
-    <div class="row"><label>Zeitlimit<select id="f-limit"><option value="0">ohne (Stoppuhr)</option><option value="30">30 Minuten</option><option value="45" selected>45 Minuten</option><option value="60">60 Minuten</option></select></label>
+    <div class="row"><label>Zeitlimit<select id="f-limit"><option value="0">ohne (Stoppuhr)</option>${[20,25,30,35,40,45,50,55,60].map(m=>`<option value="${m}"${m===45?' selected':''}>${m} Minuten</option>`).join('')}</select></label>
     <label>Strafe pro Tipp<select id="f-pen"><option value="0">keine</option>${[1,2,3,4,5,6,7,8,9,10].map(m=>`<option value="${m*60}"${m===3?' selected':''}>+${m} Minute${m>1?'n':''}</option>`).join('')}</select></label>
     <label>Strafe pro falscher Eingabe<select id="f-wpen">${[30,60,90,120,150,180].map(t=>`<option value="${t}"${t===60?' selected':''}>+${t<60?t+' Sekunden':(t%60?Math.floor(t/60)+' Min. 30 s':t/60+' Minute'+(t>60?'n':''))}</option>`).join('')}</select></label></div>
     <label>Grafik<select id="f-q"><option value="high" selected>Hoch – mit Leuchteffekten</option><option value="low">Einfach – für ältere iPads</option></select></label>
@@ -974,8 +979,8 @@ function startScreen(){
   const r=$('#resume');if(r)r.onclick=()=>{ac();setPuzzle(genPuzzle(saved.seed));if(saved.books.length!==P.books.length)saved.books=P.bookStart.slice();S=saved;enter(false)};
 }
 function enter(intro){
-  $('#start').style.display='none';setupQuality(S.quality!=='low');applyState();renderHUD();uiOpen=false;
-  const help=$('#help');help.innerHTML=isTouch?'Links ziehen = gehen · rechts ziehen = schauen · antippen = untersuchen':'WASD = gehen · Maus ziehen = schauen · Klick = untersuchen';help.style.display='block';setTimeout(()=>help.style.display='none',9000);
+  $('#start').style.display='none';setupQuality(S.quality!=='low');if(innerHeight>innerWidth)pitch=-.18;applyState();renderHUD();uiOpen=false;
+  const help=$('#help');help.innerHTML=isTouch?'Links ziehen = gehen · rechts ziehen = schauen · antippen = untersuchen':'WASD = gehen · Maus ziehen = schauen · Klick = untersuchen';help.style.display='block';setTimeout(()=>help.style.display='none',20000);
   if(intro)showNote('letter');
   if(S.end)setTimeout(finishUI,300);
 }
