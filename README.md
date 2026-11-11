@@ -1,0 +1,12 @@
+# Escape 3D: Das Labor von Prof. Quotientia
+
+3D-Escape-Room für die 1. Oberstufe (Sek, Zyklus 3) zu Brüchen, Dezimalzahlen, Prozent-Schreibweise, Modellen (Kreis-, Strecken-, Balkenmodell, Bruchbilder), Kehrwert sowie Erweitern & Kürzen.
+
+- Läuft im Browser (iPad/Safari ab iPadOS 16.4, Chrome, Edge) – eine einzige Datei `index.html`, keine Installation.
+- Jedes neue Spiel erzeugt neue Rätselzahlen und einen eigenen 6-stelligen Türcode.
+- Alle Rätsel sind im Kopf lösbar.
+- Lehrpersonen-Bereich (🎓) mit PIN – Lösungsweg für das Spiel auf dem jeweiligen Gerät.
+
+## Dateien
+- `index.html` – spielbereite Version (Three.js eingebettet)
+- `quelle/escape-quelle.html` – lesbarer Quelltext (lädt Three.js r160 per Import-Map)
