@@ -236,7 +236,7 @@ function genPuzzle(seed,level='grund'){
   /* ORANGE: Bruchbild-Mosaik */
   const MCOL=shuffle(['#7bc0e3','#f6e27a','#f0a988','#d6df9e','#5b9fd6','#e8cfa0','#f2a6b3','#b9a6e8']);
   for(let tries=0;tries<5000;tries++){
-    const G=10,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
+    const G=ERW?12:10,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
     while(rects.length<target&&guard++<60){const cand=rects.filter(r=>r.w>=2||r.h>=2);if(!cand.length)break;const r=pick(cand);
       const vert=r.w>=2&&(r.h<2||r.w>r.h||(r.w===r.h&&R()<.5)),side=vert?r.w:r.h;
       const cuts=[];if(side%2===0)cuts.push(side/2,side/2);if(side%3===0)cuts.push(side/3,2*side/3);if(!cuts.length||R()<.25)cuts.push(ri(1,side-1));const c=pick(cuts);
@@ -281,7 +281,7 @@ function setPuzzle(p){
   H.uhr.h[1]=`${P.hT} lässt sich kürzen. Ein halber Tag hat 12 Stunden. Und ${P.mT} einer Stunde sind … Minuten (1 Stunde = 60 Minuten).`;
   H.glaeser.h[1]=`Rechnet alle Gläser in Zwölftel um. Die blaue Markierung liegt bei ${P.T}/12. Welche Gläser ergeben zusammen genau so viel?`;
   H.gelb.h[1]=`${P.variant==='A'?`Der Professor hat ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''} bezahlt.`:`Die Schule zahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''}, der Professor also den Rest: ${P.fb-P.fa}/${P.fb}.`} Rechnet zuerst ${P.price} Fr. : ${P.fb}, dann mal ${P.variant==='A'?P.fa:P.fb-P.fa}. Danach: Robbis Akku zeigt ${P.batL} von ${P.batB} Balken für ${P.batR} Minuten.`;
-  H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. 25/100 = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
+  H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. ${P.mos.G===12?'36/144':'25/100'} = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
   const E=P.level==='erw';H.klavier.h[0]=E?'Jeder Takt muss zusammen genau 1 Ganzes ergeben. Rechnet alle Notenwerte in Sechzehntel um: Halbe = 8/16, Viertel = 4/16, Achtel = 2/16, Sechzehntel = 1/16.':'Jeder Takt muss zusammen genau 1 Ganzes ergeben. Rechnet alle Notenwerte in Achtel um: Halbe = 4/8, Viertel = 2/8, Achtel = 1/8.';
   H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>E?({h:'8/16',q:'4/16',e:'2/16',s:'1/16'})[k]:({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = ${E?'16/16':'8/8'}. Jeder Takt muss genau ein Ganzes ergeben.`;
 }
@@ -977,7 +977,7 @@ function startScreen(){
     <div class="row"><label>Zeitlimit<select id="f-limit"><option value="0">ohne (Stoppuhr)</option>${[30,35,40,45,50,55,60,65,70,75,80].map(m=>`<option value="${m}"${m===40?' selected':''}>${m} Minuten</option>`).join('')}</select></label>
     <label>Strafe pro Tipp<select id="f-pen"><option value="0">keine</option>${[1,2,3,4,5,6,7,8,9,10].map(m=>`<option value="${m*60}"${m===3?' selected':''}>+${m} Minute${m>1?'n':''}</option>`).join('')}</select></label>
     <label>Strafe pro falscher Eingabe<select id="f-wpen">${[30,60,90,120,150,180].map(t=>`<option value="${t}"${t===60?' selected':''}>+${t<60?t+' Sekunden':(t%60?Math.floor(t/60)+' Min. 30 s':t/60+' Minute'+(t>60?'n':''))}</option>`).join('')}</select></label></div>
-    <label>Schwierigkeit<select id="f-level"><option value="grund" selected>Grundlegend – 4 Bücher, Noten bis Achtel, 4 Gläser</option><option value="erw">Erweitert – 6 Bücher, Noten bis Sechzehntel, 6 Gläser</option></select></label>
+    <label>Schwierigkeit<select id="f-level"><option value="grund" selected>Grundlegend – 4 Bücher, Noten bis Achtel, 4 Gläser, Bruchbild 10×10</option><option value="erw">Erweitert – 6 Bücher, Noten bis Sechzehntel, 6 Gläser, Bruchbild 12×12</option></select></label>
     <label>Grafik<select id="f-q"><option value="high" selected>Hoch – mit Leuchteffekten</option><option value="low">Einfach – für ältere iPads</option></select></label>
     ${saved?`<button class="btn primary" id="resume">▶ Weiterspielen: ${esc(saved.team)}</button><button class="btn" id="go">🚀 Neues Spiel starten</button>`:'<button class="btn primary" id="go">🚀 Labor betreten</button>'}</div></div>
   <div class="card"><b>Steuerung</b><div class="ctl" style="margin-top:8px">

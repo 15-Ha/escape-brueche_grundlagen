@@ -5,7 +5,7 @@
 - Läuft im Browser (iPad/Safari ab iPadOS 16.4, Chrome, Edge) – eine einzige Datei `index.html`, keine Installation.
 - Jedes neue Spiel erzeugt neue Rätselzahlen und einen eigenen 6-stelligen Türcode.
 - Alle Rätsel sind im Kopf lösbar.
-- Zwei Schwierigkeitsgrade: **Grundlegend** (4 Bücher, Noten bis Achtel, 4 Gläser) und **Erweitert** (6 Bücher, Noten bis Sechzehntel, 6 Gläser).
+- Zwei Schwierigkeitsgrade: **Grundlegend** (4 Bücher, Noten bis Achtel, 4 Gläser, Bruchbild 10×10) und **Erweitert** (6 Bücher, Noten bis Sechzehntel, 6 Gläser, Bruchbild 12×12).
 - Spielzeit 30–80 Minuten (Standard 40), Strafzeiten für Tipps und Fehleingaben einstellbar.
 - Lehrpersonen-Bereich (🎓) mit PIN – Lösungsweg für das Spiel auf dem jeweiligen Gerät.
 
