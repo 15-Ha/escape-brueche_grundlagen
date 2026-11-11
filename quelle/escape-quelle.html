@@ -233,33 +233,55 @@ function genPuzzle(seed,level='grund'){
   const scale=[523.25,587.33,659.25,698.46,783.99,880,987.77,1046.5];let pi=ri(0,4);
   P.melody=P.takte.map(t=>t.map(()=>{pi=Math.max(0,Math.min(7,pi+pick([-2,-1,-1,1,1,2])));return scale[pi]}));
   /* Tür */
-  /* ORANGE: Bruchbild-Mosaik */
-  const MCOL=shuffle(['#7bc0e3','#f6e27a','#f0a988','#d6df9e','#5b9fd6','#e8cfa0','#f2a6b3','#b9a6e8']);
-  for(let tries=0;tries<5000;tries++){
+  /* ORANGE: Bruchbild-Mosaik (komplex: Rechtecke, L-Formen, Dreiecke) */
+  const MCOL=shuffle(['#7bc0e3','#f6e27a','#f0a988','#d6df9e','#5b9fd6','#e8cfa0','#f2a6b3','#b9a6e8','#9be3c4','#6cc070']);
+  const rect=(x,y,w,h)=>({pts:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]],a:w*h,k:'r'});
+  const tri=(p,a)=>({pts:p,a,k:'t'});
+  const Lcut=(r)=>{const{x,y,w,h}=r,a=ri(1,w-2),b=ri(1,h-2),c=ri(0,3);let sub,L;
+    if(c===0){sub=rect(x,y,a,b);L=[[x+a,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y+b],[x+a,y+b]]}
+    else if(c===1){sub=rect(x+w-a,y,a,b);L=[[x,y],[x+w-a,y],[x+w-a,y+b],[x+w,y+b],[x+w,y+h],[x,y+h]]}
+    else if(c===2){sub=rect(x+w-a,y+h-b,a,b);L=[[x,y],[x+w,y],[x+w,y+h-b],[x+w-a,y+h-b],[x+w-a,y+h],[x,y+h]]}
+    else{sub=rect(x,y+h-b,a,b);L=[[x,y],[x+w,y],[x+w,y+h],[x+a,y+h],[x+a,y+h-b],[x,y+h-b]]}
+    return [sub,{pts:L,a:w*h-a*b,k:'L'}]};
+  const diag=(r)=>{const{x,y,w}=r,k=w,C=[[x,y],[x+k,y],[x+k,y+k],[x,y+k]];return R()<.5?[tri([C[0],C[1],C[3]],k*k/2),tri([C[1],C[2],C[3]],k*k/2)]:[tri([C[0],C[1],C[2]],k*k/2),tri([C[0],C[2],C[3]],k*k/2)]};
+  const xq=(r)=>{const{x,y,w}=r,k=w,M=[x+k/2,y+k/2],C=[[x,y],[x+k,y],[x+k,y+k],[x,y+k]];return [0,1,2,3].map(i=>tri([C[i],C[(i+1)%4],M],k*k/4))};
+  const dach=(r)=>{const{x,y,w}=r,k=w,h2=k/2,C=[[x,y],[x+k,y],[x+k,y+k],[x,y+k]],o=ri(0,3);
+    const m=[[x+h2,y+k],[x,y+h2],[x+h2,y],[x+k,y+h2]][o]; // Spitze auf gegenüberliegender Seite
+    const base=[[C[0],C[1]],[C[1],C[2]],[C[2],C[3]],[C[3],C[0]]][o];
+    const opp=[[C[3],C[2]],[C[0],C[3]],[C[1],C[0]],[C[2],C[1]]][o];
+    return [tri([base[0],base[1],m],k*k/2),tri([base[0],m,opp[0]],k*k/4),tri([base[1],opp[1],m],k*k/4)]};
+  const NC=[5,8];
+  for(let tries=0;tries<20000;tries++){
     const G=ERW?12:10,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
-    while(rects.length<target&&guard++<60){const cand=rects.filter(r=>r.w>=2||r.h>=2);if(!cand.length)break;const r=pick(cand);
-      const vert=r.w>=2&&(r.h<2||r.w>r.h||(r.w===r.h&&R()<.5)),side=vert?r.w:r.h;
-      const cuts=[];if(side%2===0)cuts.push(side/2,side/2);if(side%3===0)cuts.push(side/3,2*side/3);if(!cuts.length||R()<.25)cuts.push(ri(1,side-1));const c=pick(cuts);
+    while(rects.length<target&&guard++<60){const cand=rects.filter(r=>r.w>=4||r.h>=4);if(!cand.length)break;const r=pick(cand);
+      const vert=r.w>=4&&(r.h<4||r.w>r.h||(r.w===r.h&&R()<.5)),side=vert?r.w:r.h;
+      const cuts=[];for(let c=2;c<=side-2;c++)if(c%2===0||side%3===0&&c%3===0)cuts.push(c);if(!cuts.length)continue;const c=pick(cuts);
       rects.splice(rects.indexOf(r),1);if(vert)rects.push({x:r.x,y:r.y,w:c,h:r.h},{x:r.x+c,y:r.y,w:r.w-c,h:r.h});else rects.push({x:r.x,y:r.y,w:r.w,h:c},{x:r.x,y:r.y+c,w:r.w,h:r.h-c})}
-    if(rects.some(r=>r.w*r.h<2))continue;
-    let regs=rects.map(r=>({t:'r',...r,a:r.w*r.h}));
-    const sq=regs.filter(r=>r.w===r.h&&r.w>=2&&r.w%2===0);
-    if(sq.length&&R()<.85){const q=pick(sq);regs.splice(regs.indexOf(q),1);const d=R()<.5?[[0,1,3],[1,2,3]]:[[0,1,2],[0,2,3]];d.forEach(cs=>regs.push({t:'t',x:q.x,y:q.y,w:q.w,h:q.h,cs,a:q.w*q.h/2}))}
-    if(regs.length<5||regs.length>7)continue;
-    regs=shuffle(regs);const nw=regs.length>=7?2:pick([1,1,2]);
+    let regs=[];let nTri=0,nL=0,nFancy=0;
+    for(const r of shuffle(rects)){const sqE=r.w===r.h&&r.w%2===0&&r.w>=2,ch=R();
+      if(sqE&&r.w>=4&&ch<.3){regs.push(...dach(r));nTri++;nFancy++}
+      else if(sqE&&ch<.5){regs.push(...diag(r));nTri++}
+      else if(sqE&&r.w>=4&&ch<.62){regs.push(...xq(r));nTri++;nFancy++}
+      else if(r.w>=3&&r.h>=3&&ch<.9){regs.push(...Lcut(r));nL++}
+      else regs.push(rect(r.x,r.y,r.w,r.h))}
+    if(!nTri||!nL||(ERW&&!nFancy)||regs.some(r=>r.a<2||r.a%1))continue;
+    if(regs.length<NC[0]+1||regs.length>NC[1]+2)continue;
+    regs=shuffle(regs);const nw=regs.length>=NC[1]+1?2:pick([1,2]);
     regs.forEach((r,i)=>{r.white=i<nw});
-    const col=regs.filter(r=>!r.white);if(col.length<3||col.length>5)continue;
-    if(!col.some(r=>r.t==='t'))continue;
-    const wa=regs.filter(r=>r.white).reduce((a,r)=>a+r.a,0);if(wa!==Math.round(wa))continue;
+    const col=regs.filter(r=>!r.white);if(col.length<NC[0]||col.length>NC[1])continue;
+    if(!col.some(r=>r.k==='t')||!col.some(r=>r.k==='L'))continue;
+    if(new Set(col.map(r=>r.a)).size<col.length-2)continue;
+    const wa=regs.filter(r=>r.white).reduce((a,r)=>a+r.a,0);
     const g=gcd(wa,tot),dd=tot/g;if(dd<2||dd>9)continue;
     col.forEach((r,i)=>r.c=MCOL[i]);
     P.mos={G,regs:regs.map(r=>({...r})),wa,wn:wa/g,wd:dd};P.orange=dd;break}
-  P.order=shuffle(['gelb','violett','rot','grün','blau','orange']);
+  
+P.order=shuffle(['gelb','violett','rot','grün','blau','orange']);
   const dig={gelb:P.yellow,violett:P.violet,rot:P.red,'grün':P.green,blau:P.blue,orange:P.orange};
   P.digits=dig;P.code=P.order.map(c=>dig[c]).join('');
   return P;
 }
-function mosPts(r){const C=[[r.x,r.y],[r.x+r.w,r.y],[r.x+r.w,r.y+r.h],[r.x,r.y+r.h]];return r.t==='r'?C:r.cs.map(i=>C[i])}
+function mosPts(r){return r.pts}
 function mosaicSVG(px){const M=P.mos,G=M.G,u=px/G;let s=`<svg viewBox="0 0 ${px} ${px}" style="width:100%;max-width:${px}px;display:block;margin:auto;background:#fff">`;
   M.regs.forEach(r=>{s+=`<polygon points="${mosPts(r).map(([x,y])=>`${x*u},${y*u}`).join(' ')}" fill="${r.white?'#ffffff':r.c}"/>`});
   for(let i=0;i<=G;i++)s+=`<line x1="${i*u}" y1="0" x2="${i*u}" y2="${px}" stroke="#888" stroke-width=".8" opacity=".6"/><line x1="0" y1="${i*u}" x2="${px}" y2="${i*u}" stroke="#888" stroke-width=".8" opacity=".6"/>`;
@@ -860,7 +882,7 @@ function mosaicUI(){
   const inp=regs.map(()=>({n:'',d:''}));let busy=false;
   const draw=body=>{body.innerHTML=`<p>Ein Kunstwerk aus lauter Kästchen: «Bruchbild Nr. 7». Am Rahmen hängt ein kleines Schloss mit einer Tafel: <b>Welcher Anteil des ganzen Bildes ist jede Farbe?</b> Darunter, klein eingeritzt: <i>«Ich öffne mich nur für vollständig gekürzte Brüche.»</i></p>
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;justify-content:center">${mosaicSVG(300)}
-    <div style="display:grid;gap:10px">${regs.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px"><span style="width:34px;height:34px;border-radius:6px;background:${r.c};border:2px solid #111;display:inline-block"></span>
+    <div style="display:grid;gap:10px 18px;grid-template-columns:repeat(${regs.length>4?2:1},auto)">${regs.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px"><span style="width:34px;height:34px;border-radius:6px;background:${r.c};border:2px solid #111;display:inline-block"></span>
       <span style="display:inline-flex;flex-direction:column;align-items:center;gap:3px"><input data-m="${i}" data-k="n" inputmode="numeric" value="${inp[i].n}" style="width:62px;text-align:center;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:1.1rem">
       <span style="width:66px;height:3px;background:var(--text)"></span><input data-m="${i}" data-k="d" inputmode="numeric" value="${inp[i].d}" style="width:62px;text-align:center;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:1.1rem"></span></div>`).join('')}</div></div>`;
     body.querySelectorAll('[data-m]').forEach(el=>el.oninput=()=>{inp[+el.dataset.m][el.dataset.k]=el.value})};
