@@ -267,6 +267,7 @@ function setPuzzle(p){
   NOTES.receipt={t:'Quittung unter dem Blumentopf',h:`<div class="note type">*** LABOR-SHOP ***<br><br>${P.item}<br>TOTAL&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;CHF ${P.price}.00<br>--------------------------------</div><div class="note" style="margin-top:10px">Handnotiz von Prof. Q.: ${P.variant==='A'?`«Davon habe ich ${fracH(P.fT)} selbst bezahlt – den Rest übernimmt die Schule.»`:`«Die Schule übernimmt ${fracH(P.fT)} davon – den Rest bezahle ich selbst.»`}</div>`};
   const M=P.plateM;
   NOTES.plate={t:'Messingscheibe über dem Spiegel',h:`<p>Über dem Spiegel hängt eine runde Messingscheibe, in gleich grosse Stücke geteilt. Ein Teil der Scheibe ist blank poliert:</p><svg viewBox="0 0 200 200" style="width:220px;display:block;margin:auto"><circle cx="100" cy="100" r="96" fill="#8a6a2a"/>${Array.from({length:M},(_,i)=>{const a1=i/M*Math.PI*2-Math.PI/2,a2=(i+1)/M*Math.PI*2-Math.PI/2;const on=((i-P.plateStart+M)%M)<P.plateK;return `<path d="M100,100 L${100+84*Math.cos(a1)},${100+84*Math.sin(a1)} A84,84 0 0 1 ${100+84*Math.cos(a2)},${100+84*Math.sin(a2)} Z" fill="${on?'#ffe9a8':'#6e5220'}" stroke="#3a2a10" stroke-width="3"/>`}).join('')}</svg>`};
+  NOTES.piano={t:'Gravur im Klavierdeckel',h:`<div class="note">Im Deckel des Klaviers leuchtet eine violette Gravur:<br><br><span style="font-size:2.4rem;color:#7e22ce">♪ Violett = ${P.violet} ♪</span></div>`};
   NOTES.mosaic={t:'Gravur am Mosaik-Rahmen',h:`<div class="note">Unten am Rahmen des Bruchbilds ist eingraviert:<br><br>«Orange = der <b>Nenner</b> des <u>weissen</u> Anteils – vollständig gekürzt.»</div>`};
   NOTES.laptop={t:'Nachricht auf dem Laptop',h:`<div class="screen">&gt; Login erfolgreich.<br><br>&gt; Notiz an mich: Die gelbe Ziffer ist die Anzahl <b>Viertelstunden</b>, die mein Roboter Robbi mit <b>vollem Akku</b> durchhält.</div>`};
   const fb=P.books.filter(b=>b.t.includes('/')).sort((x,y)=>+y.t.split('/')[1]-+x.t.split('/')[1])[0];
@@ -276,7 +277,7 @@ function setPuzzle(p){
   H.glaeser.h[1]=`Rechnet alle Gläser in Zwölftel um. Die blaue Markierung liegt bei ${P.T}/12. Welche Gläser ergeben zusammen genau so viel?`;
   H.gelb.h[1]=`${P.variant==='A'?`Der Professor hat ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''} bezahlt.`:`Die Schule zahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` = ${P.fa}/${P.fb}`:''}, der Professor also den Rest: ${P.fb-P.fa}/${P.fb}.`} Rechnet zuerst ${P.price} Fr. : ${P.fb}, dann mal ${P.variant==='A'?P.fa:P.fb-P.fa}. Danach: Robbis Akku zeigt ${P.batL} von ${P.batB} Balken für ${P.batR} Minuten.`;
   H.mosaik.h[1]=`Das ganze Bild hat ${P.mos.G} · ${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen. Ein Dreieck ist die Hälfte eines Rechtecks. Das Schloss nimmt nur vollständig gekürzte Brüche, z. B. 25/100 = 1/4. Für Orange: Was bleibt weiss? Zählt die weissen Kästchen und kürzt.`;
-  H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = 8/8. Danach: die drei fehlenden Noten zusammenzählen und in Achteln angeben.`;
+  H.klavier.h[1]=`Takt 1: ${P.takte[0].filter(Boolean).map(k=>({h:'4/8',q:'2/8',e:'1/8'})[k]).join(' + ')} + ? = 8/8. Jeder Takt muss genau ein Ganzes ergeben.`;
 }
 
 /* ======================= Zustand ======================= */
@@ -586,8 +587,8 @@ function buildPiano(){
   // Deckel mit Gravur
   const pv=new THREE.Group();pv.position.set(0,1.28,-.28);g.add(pv);anim.lid=pv;
   box(1.56,.035,.56,body,0,.02,.28,pv);
-  const gr=tex(512,180,(c,w,h)=>{c.fillStyle='#0c0612';c.fillRect(0,0,w,h);c.shadowColor='#c084fc';c.shadowBlur=24;c.fillStyle='#d8b4fe';c.font='bold 46px serif';c.textAlign='center';c.fillText('♪ VIOLETT ♪',w/2,80);c.font='26px serif';c.fillText('fehlende Noten · in Achteln',w/2,135)});
-  const eng=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.42),new THREE.MeshBasicMaterial({map:gr}));eng.rotation.x=Math.PI/2;eng.position.set(0,.001,.28);pv.add(eng);
+  const gr=tex(512,180,(c,w,h)=>{c.fillStyle='#0c0612';c.fillRect(0,0,w,h)});
+  const eng=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.42),new THREE.MeshBasicMaterial({map:gr}));pianoEng=eng;eng.rotation.x=Math.PI/2;eng.position.set(0,.001,.28);pv.add(eng);
   pianoGlow=new THREE.PointLight(0xa855f7,0,3,1.5);pianoGlow.position.set(0,1.6,.1);g.add(pianoGlow);
   // Logo (dezent, wie ein Herstellerschild)
   new THREE.TextureLoader().load(LOGO_HA,t=>{t.colorSpace=THREE.SRGBColorSpace;const lg=plane(.13,.121,new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:.5,depthWrite:false}),-.52,1.1,.253,0,g);lg.userData.noHit=true});
@@ -598,7 +599,7 @@ function buildPiano(){
   const sl=new THREE.Mesh(new THREE.CylinderGeometry(.04,.06,.46,10),std(0x111111));sl.position.set(.3,.23,D-1.15);scene.add(sl);
   obstacles.push({x1:-.5,x2:1.1,z1:D-.92,z2:D},{x1:.05,x2:.55,z1:D-1.4,z2:D-.9});
 }
-let pianoGlow,dust;
+let pianoGlow,dust,pianoEng;
 function applyEnv(){const pm=new THREE.PMREMGenerator(renderer);const env=pm.fromScene(new RoomEnvironment(renderer),.04).texture;
   scene.traverse(o=>{const m=o.material;if(m&&m.isMeshStandardMaterial&&!m.transparent&&(m.metalness>=.5||m.roughness<=.25)){m.envMap=env;m.envMapIntensity=.55;m.needsUpdate=true}})}
 function applyPiano(){pianoGlow.intensity=4}
@@ -699,6 +700,8 @@ function applyPuzzle3D(){
   progressTubes.forEach(m=>doorGrp.remove(m));
   progressTubes=DOOR_ORDER.map(([n,col],i)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.2,10),new THREE.MeshBasicMaterial({color:new THREE.Color(col).multiplyScalar(.18),toneMapped:false}));
     m.rotation.z=Math.PI/2;m.position.set(-.5+i*.2,2.8,.06);doorGrp.add(m);m.userData.col=col;return m});
+  // Klavier-Gravur
+  pianoEng.material.map=tex(512,180,(c,w,h)=>{c.fillStyle='#0c0612';c.fillRect(0,0,w,h);c.shadowColor='#c084fc';c.shadowBlur=24;c.fillStyle='#d8b4fe';c.textAlign='center';c.textBaseline='middle';c.font='bold 64px serif';c.fillText(`♪ VIOLETT = ${P.violet} ♪`,w/2,h/2+4)});pianoEng.material.needsUpdate=true;
   // Mosaik
   mosaicMesh.material.map=tex(512,512,(c,w,h)=>{const M=P.mos,G=M.G,u=w/G;c.fillStyle='#fff';c.fillRect(0,0,w,h);
     const poly=r=>{c.beginPath();mosPts(r).forEach(([x,y],i)=>i?c.lineTo(x*u,y*u):c.moveTo(x*u,y*u));c.closePath()};
@@ -922,7 +925,7 @@ function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.inc
     <li><b>Blau (Gläser):</b> Schlüssel öffnet die Schublade → Notizbuch. ${gl} = ${P.T}/12 (blaue Markierung). Übrig: ${u.t}${u.t===`${u.v}/12`?'':` = ${u.v}/12`} = ${u.v/gcd(u.v,12)}/${12/gcd(u.v,12)} → Nenner <b>${P.blue}</b></li>
     <li><b>Grün (Spiegel):</b> Spiegelschrift im Spiegel lesen: «Kehrwert des Anteils über dem Spiegel». Scheibe: ${P.plateK} von ${P.plateM} Stücken poliert = ${P.plateK}/${P.plateM} → Kehrwert ${P.plateM}/${P.plateK} = <b>${P.green}</b></li>
     <li><b>Gelb (Laptop + Roboter):</b> Blumentopf → Quittung ${P.price} Fr.; ${P.variant==='A'?`selbst bezahlt ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` (= ${P.fa}/${P.fb})`:''}`:`Schule ${P.fT}${P.fT!==`${P.fa}/${P.fb}`?` (= ${P.fa}/${P.fb})`:''}, selbst also ${P.fb-P.fa}/${P.fb}`} → ${P.price} : ${P.fb} · ${P.variant==='A'?P.fa:P.fb-P.fa} = ${P.final} → Passwort <b>${P.final}</b>. Robbi: ${P.batL}/${P.batB} ≙ ${P.batR} min → voll ${P.yellow*15} min = <b>${P.yellow}</b> Viertelstunden</li>
-    <li><b>Violett (Klavier):</b> fehlende Noten: ${P.taktSol.map((k,i)=>`Takt ${i+1}: ${gn[k]} (${N16[k]}/16)`).join(' · ')} → zusammen ${P.taktSol.reduce((a,k)=>a+N16[k],0)}/16 = ${P.violet}/8 → <b>${P.violet}</b></li>
+    <li><b>Violett (Klavier):</b> fehlende Noten: ${P.taktSol.map((k,i)=>`Takt ${i+1}: ${gn[k]} (${N16[k]}/16)`).join(' · ')} → Deckel öffnet sich, Gravur zeigt direkt <b>${P.violet}</b></li>
     <li><b>Orange (Bruchbild):</b> Mosaik an der Vorderwand (${P.mos.G}·${P.mos.G} = ${P.mos.G*P.mos.G} Kästchen). Farbflächen: ${P.mos.regs.filter(r=>!r.white).map(r=>`<span style="display:inline-block;width:.9em;height:.9em;background:${r.c};border:1px solid #333;vertical-align:middle"></span> ${r.a}/${P.mos.G*P.mos.G} = ${r.a*2/gcd(r.a*2,P.mos.G*P.mos.G*2)}/${P.mos.G*P.mos.G*2/gcd(r.a*2,P.mos.G*P.mos.G*2)}`).join(', ')}. Danach Gravur am Rahmen: weisser Anteil ${P.mos.wa}/${P.mos.G*P.mos.G} = ${P.mos.wn}/${P.mos.wd} → <b>${P.orange}</b></li>
     <li><b>Tür:</b> Farbreihenfolge ${P.order.join('–')} → <b>${P.code}</b></li></ol>
     <p class="muted">Diese Rätselzahlen gelten nur für das Spiel auf diesem Gerät. Ablenkungen ohne Funktion: Pizzakarton, Wandtafel (Merkhilfe), Poster (linke Wand), Fenster.</p>`}
