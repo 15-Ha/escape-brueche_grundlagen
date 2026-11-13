@@ -817,7 +817,7 @@ function openPanel(title,html,acts=[],onMount){
   onMount&&onMount($('#pbody'));
 }
 function closePanel(){panelId++;$('#ov').style.display='none';$('#ov').innerHTML='';uiOpen=false;renderHUD()}
-function checkMirror(){if(S.notes.includes('mirrortext')&&S.notes.includes('plate')&&!S.f.mirror){S.f.mirror=true;save()}}
+function checkMirror(){if((S.notes.includes('mirrortext')||S.notes.includes('wall'))&&S.notes.includes('plate')&&!S.f.mirror){S.f.mirror=true;save()}}
 function showNote(k){addNote(k);openPanel(NOTES[k].t,NOTES[k].h,[{label:'OK',cls:'primary'}])}
 
 function interact(id){
