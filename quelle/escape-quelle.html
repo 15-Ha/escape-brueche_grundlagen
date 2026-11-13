@@ -205,9 +205,10 @@ function genPuzzle(seed,level='grund'){
   const cols=[0xff5577,0xffc23d,0x8be04e,0xc77dff];
   const rep12=v=>{const g=gcd(v,12),o=[`${v/g}/${12/g}`];if(g>1)o.push(`${v}/12`);if(R()<.4)o.push(`${v*2}/24`);if(v%3===0)o.push(fmtD(v/12),`${v/12*100} %`);return pick(o)};
   if(ERW){const c6=[0xff5577,0xffc23d,0x8be04e,0xc77dff,0x38bdf8,0xfb923c];
-   for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,6),k=ri(3,4),idx=shuffle([0,1,2,3,4,5]).slice(0,k),T=idx.reduce((a,i)=>a+vals[i],0);if(T>12||T<7)continue;
+   for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,6),k=3,idx=shuffle([0,1,2,3,4,5]).slice(0,k),T=idx.reduce((a,i)=>a+vals[i],0);if(T>12||T<7)continue;
     let cnt=0;for(let m=1;m<64;m++){let s=0;for(let i=0;i<6;i++)if(m>>i&1)s+=vals[i];if(s===T)cnt++}if(cnt!==1)continue;
-    P.glasses=vals.map((v,i)=>({v,t:rep12(v),c:c6[i]}));P.T=T;P.used=idx.sort((a,b)=>a-b);P.blue=ri(2,9);break}}
+    const rep6=v=>{const g=gcd(v,12),o=[`${v/g}/${12/g}`,`${v}/12`];if(v%3===0)o.push(fmtD(v/12),`${v/12*100} %`);return pick(o)};
+    P.glasses=vals.map((v,i)=>({v,t:rep6(v),c:c6[i]}));P.T=T;P.used=idx.sort((a,b)=>a-b);P.blue=ri(2,9);break}}
   else for(;;){const vals=shuffle([...Array(11)].map((_,i)=>i+1)).slice(0,4),ui=ri(0,3),u=vals[ui];if(![2,3,4,6,8,9,10].includes(u))continue;
     const T=vals.reduce((a,b)=>a+b,0)-u;if(T>11||T<5)continue;
     let cnt=0;for(let mask=1;mask<16;mask++){let s=0;for(let i=0;i<4;i++)if(mask>>i&1)s+=vals[i];if(s===T)cnt++}if(cnt!==1)continue;
@@ -216,7 +217,7 @@ function genPuzzle(seed,level='grund'){
   for(;;){P.green=ri(2,9);const k=ri(1,3),m=P.green*k;if(m>=4&&m<=16){P.plateM=m;P.plateK=k;P.plateStart=ri(0,m-1);break}}
   /* GELB: Quittung + Roboter-Akku */
   for(;;){P.yellow=ri(2,9);const full=15*P.yellow,B=pick([4,5,6,8,10]),L=ri(1,B-1);if((full*L)%B)continue;const Rm=full*L/B;if(Rm<5||full/B!==Math.round(full/B))continue;P.batB=B;P.batL=L;P.batR=Rm;break}
-  for(;;){const b=pick([3,4,5,6,8,10,12]),a=ri(1,b-1);if(gcd(a,b)!==1)continue;const unit=5*ri(1,12),pr=b*unit;if(pr<100||pr>600)continue;
+  for(;;){const b=pick([3,4,5,6,8,10,12]),a=ri(1,b-1);if(gcd(a,b)!==1)continue;const unit=pick([5,10,15,20,25,30,40,50,60]),pr=b*unit;if(pr<100||pr>600)continue;
     const ex=(R()<.25&&b<=6)?2:1,variant=R()<.5?'A':'B',own=variant==='A'?pr*a/b:pr*(b-a)/b;
     const it=pick(['Mikroskop «Zoom 3000»','Zentrifuge «Spin X»','Laborwaage «Exakt»','Bunsenbrenner-Set «Flamme»']);
     Object.assign(P,{price:pr,fa:a,fb:b,fT:`${a*ex}/${b*ex}`,variant,final:own,item:it});break}
@@ -250,7 +251,7 @@ function genPuzzle(seed,level='grund'){
     const base=[[C[0],C[1]],[C[1],C[2]],[C[2],C[3]],[C[3],C[0]]][o];
     const opp=[[C[3],C[2]],[C[0],C[3]],[C[1],C[0]],[C[2],C[1]]][o];
     return [tri([base[0],base[1],m],k*k/2),tri([base[0],m,opp[0]],k*k/4),tri([base[1],opp[1],m],k*k/4)]};
-  const NC=[5,8];
+  const NC=ERW?[5,6]:[5,8];
   for(let tries=0;tries<20000;tries++){
     const G=ERW?12:10,tot=G*G;let rects=[{x:0,y:0,w:G,h:G}];const target=ri(4,6);let guard=0;
     while(rects.length<target&&guard++<60){const cand=rects.filter(r=>r.w>=4||r.h>=4);if(!cand.length)break;const r=pick(cand);
@@ -271,6 +272,7 @@ function genPuzzle(seed,level='grund'){
     const col=regs.filter(r=>!r.white);if(col.length<NC[0]||col.length>NC[1])continue;
     if(!col.some(r=>r.k==='t')||!col.some(r=>r.k==='L'))continue;
     if(new Set(col.map(r=>r.a)).size<col.length-2)continue;
+    if(ERW&&col.some(r=>tot/gcd(r.a,tot)>36))continue;
     const wa=regs.filter(r=>r.white).reduce((a,r)=>a+r.a,0);
     const g=gcd(wa,tot),dd=tot/g;if(dd<2||dd>9)continue;
     col.forEach((r,i)=>r.c=MCOL[i]);
