@@ -346,7 +346,7 @@ const camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,50);camer
 let composer=null;
 function setupQuality(high){renderer.setPixelRatio(high?Math.min(devicePixelRatio,1.5):1);renderer.setSize(innerWidth,innerHeight);
   if(high){const pr=renderer.getPixelRatio();composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(innerWidth*pr,innerHeight*pr,{type:THREE.HalfFloatType,samples:4}));composer.addPass(new RenderPass(scene,camera));composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),.45,.4,.93));composer.addPass(new OutputPass());composer.setSize(innerWidth,innerHeight)}
-  else{composer=null;if(mirrorRef)mirrorRef.getRenderTarget().setSize(512,512)}}
+  else{composer=null;if(mirrorRef)mirrorRef.getRenderTarget().setSize(768,768)}}
 function fitCam(){const a=innerWidth/innerHeight;camera.aspect=a;const h=78*Math.PI/180;camera.fov=Math.min(92,Math.max(68,2*Math.atan(Math.tan(h/2)/a)*180/Math.PI));camera.updateProjectionMatrix()}
 fitCam();
 addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);composer&&composer.setSize(innerWidth,innerHeight);fitCam()});
@@ -369,7 +369,7 @@ function buildRoom(){
   scene.add(new THREE.AmbientLight(0xffffff,.32));
   scene.add(new THREE.HemisphereLight(0xcfe3ff,0x3a2a1a,.6));
   const dl=new THREE.DirectionalLight(0xfff2dd,.8);dl.position.set(2,6,3);scene.add(dl);
-  [[-3,-2],[3,2],[2.6,-3],[-2.5,2.8]].forEach(([x,z],i)=>{const p=new THREE.PointLight(i%2?0xffd9a0:0xfff0d0,11,9,1.5);p.position.set(x,2.35,z);scene.add(p)});
+  [[-3.2,-3.6],[3,2],[2.6,-3],[-2.5,2.8]].forEach(([x,z],i)=>{const p=new THREE.PointLight(i%2?0xffd9a0:0xfff0d0,11,9,1.5);p.position.set(x,2.35,z);scene.add(p)});
   // Boden (Holz)
   const floorT=tex(1024,1024,(g,w,h)=>{for(let i=0;i<16;i++){const y=i*h/16;g.fillStyle=`hsl(28,${35+(i*7)%15}%,${22+(i*13)%8}%)`;g.fillRect(0,y,w,h/16);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(0,y,w,3);
     for(let k=0;k<3;k++){const x=((i*337+k*211)%w);g.fillRect(x,y,3,h/16)}
@@ -387,7 +387,7 @@ function buildRoom(){
   box(2*W,.04,.04,neon,0,H-.15,-D+.03);box(2*W,.04,.04,neon,0,H-.15,D-.03);box(.04,.04,2*D,neon,-W+.03,H-.15,0);box(.04,.04,2*D,neon,W-.03,H-.15,0);
   const base=std(0x10171d);box(2*W,.12,.03,base,0,.06,-D+.015);box(2*W,.12,.03,base,0,.06,D-.015);box(.03,.12,2*D,base,-W+.015,.06,0);box(.03,.12,2*D,base,W-.015,.06,0);
   // Deckenlampen
-  [[-3,-2],[3,2],[2.6,-3],[-2.5,2.8]].forEach(([x,z])=>{
+  [[-3.2,-3.6],[3,2],[2.6,-3],[-2.5,2.8]].forEach(([x,z])=>{
     const cord=new THREE.Mesh(new THREE.CylinderGeometry(.008,.008,.62,6),std(0x111111));cord.position.set(x,H-.31,z);scene.add(cord);
     const sh=new THREE.Mesh(new THREE.ConeGeometry(.24,.22,28,1,true),std(0x1c2a33,{metalness:.7,roughness:.35,side:THREE.DoubleSide}));sh.position.set(x,H-.68,z);scene.add(sh);
     const rim=new THREE.Mesh(new THREE.TorusGeometry(.24,.008,6,28),new THREE.MeshBasicMaterial({color:0xaecb35}));rim.rotation.x=Math.PI/2;rim.position.set(x,H-.79,z);scene.add(rim);
@@ -527,8 +527,10 @@ function buildLeftWall(){
   box(1.3,1.05,.05,std(0xb8902f,{metalness:.6,roughness:.4}),0,-.55,0,pv);plane(1.18,.93,std(0xffffff,{map:art}),0,-.55,.03,0,pv);
   const n=plane(.25,.18,std(0xf4ecd4),.55,-.5,.002,0,g);n.rotation.z=-.25;
   // Spiegelschrift
-  const mt=tex(1024,256,(c,w,h)=>{c.translate(w,0);c.scale(-1,1);c.fillStyle='rgba(230,240,255,.92)';c.font='bold 64px "Caveat",cursive';c.textAlign='center';c.font='bold 58px "Caveat",cursive';c.fillText('GRÜN IST DER KEHRWERT DES',w/2,100);c.fillText('ANTEILS ÜBER DEM SPIEGEL',w/2,190)});
-  const mw=plane(3.2,.8,new THREE.MeshStandardMaterial({map:mt,transparent:true,roughness:1}),-W+.03,1.75,-1.5,Math.PI/2);tag(mw,'wall');
+  const mt=tex(1024,650,(c,w,h)=>{c.translate(w,0);c.scale(-1,1);c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
+    ['GRÜN IST DER','KEHRWERT DES','ANTEILS ÜBER','DEM SPIEGEL'].forEach((t,i)=>{let fs=128;do{c.font=`bold ${fs}px "Space Grotesk",sans-serif`;fs-=4}while(c.measureText(t).width>w-70);
+      c.lineWidth=14;c.strokeStyle='rgba(0,0,0,.55)';c.strokeText(t,w/2,90+i*156);c.fillStyle='#ffffff';c.fillText(t,w/2,90+i*156)})});
+  const mw=plane(3.0,1.9,new THREE.MeshBasicMaterial({map:mt,transparent:true,color:0xe6e6e6}),-W+.03,2.0,-1.5,Math.PI/2);tag(mw,'wall');
 }
 
 /* ---------- Spiegel & Uhr (rechte Wand) ---------- */
@@ -538,7 +540,7 @@ function buildRightWall(){
   const g=new THREE.Group();g.position.set(W-.04,1.55,-1.5);g.rotation.y=-Math.PI/2;scene.add(g);tag(g,'mirror');
   const gold=std(0xc9a24a,{metalness:.7,roughness:.5});
   box(1.45,2.15,.06,gold,0,0,-.02,g);
-  const mir=new Reflector(new THREE.PlaneGeometry(1.3,2),{clipBias:.003,textureWidth:Math.min(1024,innerWidth*renderer.getPixelRatio()),textureHeight:Math.min(1024,innerHeight*renderer.getPixelRatio()),color:0xb8c4cc});
+  const mir=new Reflector(new THREE.PlaneGeometry(1.3,2),{clipBias:.003,textureWidth:Math.min(1024,innerWidth*renderer.getPixelRatio()),textureHeight:Math.min(1024,innerHeight*renderer.getPixelRatio()),color:0xdfe6ea});
   mir.position.z=.015;g.add(mir);tag(mir,'mirror');mirrorRef=mir;
   const plate=new THREE.Mesh(new THREE.CircleGeometry(.16,40),new THREE.MeshBasicMaterial({color:0xd8d0c0}));plateMesh=plate;plate.position.set(0,1.27,.02);g.add(plate);tag(plate,'plate');
   
