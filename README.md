@@ -21,6 +21,13 @@ Die Anwendung unterstützt die [Embed-API von LearningView](https://learningview
 
 Ausserhalb von LearningView wird der Spielstand wie bisher im Browser (`localStorage`) gesichert.
 
+### Einbetten per Webadresse oder als hochgeladene Datei?
+Beides ist möglich. Für direkt eingebettete Webseiten nennt die Dokumentation `getEmbedContext`, `getClassAnswerData`, `getClassStudents`, `getSelectedStudent` und `setDialogSize`; ob `saveAnswerData`/`getAnswerData` dort ebenfalls bedient werden, ist nicht dokumentiert. Die Anwendung kommt mit beidem zurecht:
+
+- Sie sichert den Spielstand im Spielmodus zusätzlich lokal im Browser und lädt ihn von dort, wenn LearningView keinen Stand liefert. Das Spiel geht also nie verloren.
+- Im Lehrpersonen-Bereich (🎓) steht zuoberst eine Statuszeile: Modus, Anzahl bestätigter Übertragungen und der letzte Fehler. Damit lässt sich in zwei Minuten prüfen, ob die Einbettung per Webadresse auch die Antwortdaten speichert.
+- Wird das Speichern nicht bestätigt, bleibt die Klassenübersicht leer; dann die Datei `index.html` als HTML-Aufgabe hochladen.
+
 Hinweise:
 - Speichervorgänge laufen nacheinander mit mindestens 2 Sekunden Abstand und warten auf die Bestätigung; Fehler werden den Lernenden angezeigt.
 - Klassendaten werden nur nach Freigabe durch die Lehrperson übertragen; während der Freigabe zeigt die Anwendung einen Wartehinweis.

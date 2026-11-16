@@ -335,6 +335,7 @@ const LV=(()=>{
   const ORIGIN='https://learningview.org',MAXB=1048576;
   let inFrame=false;try{inFrame=!!window.parent&&window.parent!==window}catch(e){inFrame=true}
   let mode=null,raw='',lastSc=-1,fails=0,warned='',started=false,lateCb=null;
+  let nSend=0,nAck=0,nErr=0,lastErr='',lsOK=null,fromLS=false;
   let dirty=false,busy=false,lastSend=0,tmr=null;
   const waits={};
   const post=m=>{try{window.parent.postMessage(m,ORIGIN)}catch(e){}};
@@ -347,10 +348,10 @@ const LV=(()=>{
     let src=false;try{src=e.source===window.parent}catch(x){}
     if(!src||e.origin!==ORIGIN)return;
     const d=e.data;
-    if(d==='SAVED'){busy=false;fails=0;clearTimeout(tmr);fire('saved',true);if(dirty)flush();return}
+    if(d==='SAVED'){busy=false;fails=0;nAck++;clearTimeout(tmr);fire('saved',true);if(dirty)flush();return}
     if(!d||typeof d!=='object')return;
     if(d.type==='saveAnswerDataError'){
-      busy=false;clearTimeout(tmr);fails++;
+      busy=false;clearTimeout(tmr);fails++;nErr++;lastErr=d.error||'SAVE_FAILED';
       if(d.error==='ANSWER_DATA_TOO_LARGE'){dirty=false;warn('Der Spielstand ist zu gross und wurde nicht gespeichert.')}
       else if(fails>=3)warn('Der Spielstand konnte nicht gespeichert werden. Notiert das Ergebnis zur Sicherheit.');
       else{dirty=true;tmr=setTimeout(flush,2000)}
@@ -363,8 +364,8 @@ const LV=(()=>{
     const w=2000-(Date.now()-lastSend);
     if(w>0){clearTimeout(tmr);tmr=setTimeout(flush,w);return}
     if(new TextEncoder().encode(raw).length>MAXB){dirty=false;warn('Der Spielstand ist zu gross und wurde nicht gespeichert.');return}
-    dirty=false;busy=true;lastSend=Date.now();post({type:'saveAnswerData',data:raw});
-    clearTimeout(tmr);tmr=setTimeout(()=>{busy=false;fails++;
+    dirty=false;busy=true;lastSend=Date.now();nSend++;post({type:'saveAnswerData',data:raw});
+    clearTimeout(tmr);tmr=setTimeout(()=>{busy=false;fails++;nErr++;lastErr='KEINE_ANTWORT';
       if(fails<3){dirty=true;flush()}else warn('Der Spielstand konnte nicht gespeichert werden. Notiert das Ergebnis zur Sicherheit.')},12000);
   }
   /* Letzter Versuch, wenn die Aufgabe geschlossen oder in den Hintergrund gelegt wird */
@@ -376,6 +377,10 @@ const LV=(()=>{
     if(mode==='student'||mode==='studentReview'){
       const p=wait('sendAnswerData',10000);post({type:'getAnswerData'});const r=await p;
       raw=(r&&typeof r.data==='string')?r.data:'';
+      /* Liefert LearningView nichts (z.B. weil die Einbettung keine Antwortdaten kennt),
+         greifen wir auf die lokale Sicherung zurück. Nur im Spielmodus – in der
+         Einzelansicht wäre das der Stand der Lehrperson, nicht der der Lernenden. */
+      if(!raw&&mode==='student'){try{const b=localStorage.getItem(KEY);if(b){raw=b;fromLS=true}}catch(e){}}
     }
     return mode;
   }
@@ -418,11 +423,14 @@ const LV=(()=>{
     teacher:()=>mode==='class'||mode==='studentReview',
     onPending:fn=>wait('pendingUI',0).then(fn),
     raw:()=>raw,
-    write(s){raw=s;if(mode==='student'){dirty=true;flush()}else if(!mode){try{localStorage.setItem(KEY,s)}catch(e){}}},
+    write(s){raw=s;
+      if(mode==='student'){dirty=true;flush()}
+      if(!mode||mode==='student'){try{localStorage.setItem(KEY,s);lsOK=true}catch(e){lsOK=false}}},
     clear(){raw='';
+      if(!mode||mode==='student'){try{localStorage.removeItem(KEY)}catch(e){}}
       if(mode==='student'){dirty=true;const p=wait('saved',6000);flush();return p}
-      if(!mode){try{localStorage.removeItem(KEY)}catch(e){}}
       return Promise.resolve(true)},
+    stat:()=>({mode,send:nSend,ack:nAck,err:nErr,lastErr,ls:lsOK,fromLS,bytes:raw?new TextEncoder().encode(raw).length:0}),
     score(v){if(mode!=='student')return;v=Math.max(0,Math.min(1,v));if(Math.abs(v-lastSc)<1e-9)return;lastSc=v;post({result:{score:{scaled:v}}})}
   };
 })();
@@ -1077,10 +1085,21 @@ function notesUI(){
   openPanel('📜 Gefundene Notizen',ctl+S.notes.map(k=>`<h3 style="margin:14px 0 6px">${NOTES[k].t}</h3>${NOTES[k].h}`).join(''),[{label:'OK',cls:'primary'}]);
 }
 let pinOK=false;
+function lvStatusHTML(){
+  if(!LV.inLV())return '';
+  const t=LV.stat();
+  const ok=t.ack>0, none=t.send>0&&t.ack===0;
+  const txt=t.mode!=='student'?'Lehrpersonen- bzw. Vorschaumodus – in diesem Modus wird nichts gespeichert.'
+    :ok?`<b style="color:var(--ok)">Speichern über LearningView funktioniert.</b> ${t.ack} von ${t.send} Übertragungen bestätigt${t.err?`, ${t.err} Fehler`:''}.`
+    :none?`<b style="color:#ff9a6b">LearningView bestätigt das Speichern nicht</b> (${t.send} Versuche${t.lastErr?', zuletzt: '+esc(t.lastErr):''}). Der Spielstand liegt nur lokal auf diesem Gerät, und die Klassenübersicht bleibt leer. Dann die Datei als HTML-Aufgabe hochladen statt die Webadresse einzubetten.`
+    :t.fromLS?'<b style="color:#ff9a6b">LearningView hat keinen gespeicherten Stand geliefert</b> – gespielt wird mit der lokalen Sicherung. Löst eine Aufgabe und schaut dann hier nochmals nach.'
+    :'Noch keine Übertragung – löst eine Aufgabe und schaut dann hier nochmals nach.';
+  return `<div class="card" style="margin-bottom:12px;padding:12px"><p style="margin:0;font-size:.95rem">🔌 <b>LearningView:</b> Modus <code>${esc(t.mode)}</code>${t.fromLS?' · Spielstand aus der lokalen Sicherung geladen':''}<br>${txt}</p></div>`;
+}
 function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.includes('/')?` (${fmtD(Math.round(b.v*1000)/1000)}${Math.abs(b.v*1000-Math.round(b.v*1000))>1e-9?'…':''})`:''}`).join(' &lt; ');
   const gl=P.glasses.map((g,i)=>i===P.unused?null:(g.t===`${g.v}/12`?g.t:`${g.t} (= ${g.v}/12)`)).filter(Boolean).join(' + ');const u=P.glasses[P.unused];
   const gn={s:'Sechzehntel',e:'Achtel',q:'Viertel',h:'Halbe'};
-  return `<p><b>Türcode: <span style="color:var(--acc);font-size:1.4rem;letter-spacing:.15em">${P.code}</span></b> (${P.order.map(c=>`${c} ${P.digits[c]}`).join(' · ')})</p><ol>
+  return lvStatusHTML()+`<p><b>Türcode: <span style="color:var(--acc);font-size:1.4rem;letter-spacing:.15em">${P.code}</span></b> (${P.order.map(c=>`${c} ${P.digits[c]}`).join(' · ')})</p><ol>
     <li><b>Rot (Bücher):</b> Teppich anheben → Zettel. Ordnen: ${bs} → Buchstaben «${WORDS[P.red]}» → <b>${P.red}</b></li>
     <li><b>Schlüssel (Uhr):</b> Bild an der linken Wand → Zettel. ${P.hT} von 12 h = ${P.h} h; ${P.mT} von 60 min = ${P.m} min → Uhr auf <b>${P.h}:${String(P.m).padStart(2,'0')}</b> → Messingschlüssel</li>
     <li><b>Blau (Gläser):</b> Schlüssel öffnet die Schublade → Notizbuch. ${P.used.map(i=>{const g=P.glasses[i];return g.t===`${g.v}/12`?g.t:`${g.t} (= ${g.v}/12)`}).join(' + ')} = ${P.T}/12 (blaue Markierung). ${P.level==='erw'?`Danach zeigt der Zylinder direkt <b>${P.blue}</b>`:`Übrig: ${P.glasses[P.unused].t} = ${P.glasses[P.unused].v}/12 = ${P.glasses[P.unused].v/gcd(P.glasses[P.unused].v,12)}/${12/gcd(P.glasses[P.unused].v,12)} → Nenner <b>${P.blue}</b>`}</li>
