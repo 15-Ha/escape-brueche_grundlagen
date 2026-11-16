@@ -323,7 +323,7 @@ function setPuzzle(p){
 
 /* ======================= Zustand ======================= */
 const KEY='escape3d-bruchlabor-v3';
-const VERSION='2026-11-16 · LV-2';
+const VERSION='2026-11-16 · LV-3';
 let S=null;
 const fresh=(team,limit,penalty)=>({team:team||'Team Labor',limit,penalty,start:Date.now(),pen:0,end:null,solView:false,doorWrong:0,wrong:0,
   hint:{},f:{},notes:[],inv:[],books:[],sound:true,quality:'high'});
@@ -333,13 +333,24 @@ const fresh=(team,limit,penalty)=>({team:team||'Team Labor',limit,penalty,start:
    Modi: student (spielen + speichern) · studentReview (Einzellösung, nur lesen)
          class (Klassenübersicht) · preview (ohne Daten) · null (ausserhalb LearningView) */
 const LV=(()=>{
-  const ORIGIN='https://learningview.org',MAXB=1048576;
+  const DEF='https://learningview.org',MAXB=1048576;
   let inFrame=false;try{inFrame=!!window.parent&&window.parent!==window}catch(e){inFrame=true}
+  /* Das Elternfenster kann unter learningview.org, www.learningview.org oder einer
+     eigenen Adresse der Schule laufen. Wir ermitteln es aus dem Verweis (referrer),
+     senden sonst an die bekannten Adressen und merken uns die Adresse der ersten Antwort. */
+  const refOrg=(()=>{try{return document.referrer?new URL(document.referrer).origin:''}catch(e){return ''}})();
+  const isLV=o=>{try{const h=new URL(o).hostname.toLowerCase();return h==='learningview.org'||h.endsWith('.learningview.org')}catch(e){return false}};
+  const trusted=o=>isLV(o)||(!!refOrg&&o===refOrg);
+  let ORIGIN=isLV(refOrg)?refOrg:DEF,locked=false;
+  const CANDS=[...new Set([ORIGIN,DEF,'https://www.learningview.org',refOrg].filter(Boolean))];
   let mode=null,raw='',lastSc=-1,fails=0,warned='',started=false,lateCb=null;
   let nSend=0,nAck=0,nErr=0,lastErr='',lsOK=null,fromLS=false;
   let dirty=false,busy=false,lastSend=0,tmr=null;
   const waits={};
-  const post=m=>{try{window.parent.postMessage(m,ORIGIN)}catch(e){}};
+  const post=m=>{
+    if(locked){try{window.parent.postMessage(m,ORIGIN)}catch(e){}return}
+    /* Nur das Fenster mit der passenden Adresse erhält die Nachricht, die übrigen verwirft der Browser. */
+    CANDS.forEach(o=>{try{window.parent.postMessage(m,o)}catch(e){}})};
   const wait=(type,ms)=>new Promise(res=>{const a=waits[type]=waits[type]||[];a.push(res);
     if(ms)setTimeout(()=>{const i=a.indexOf(res);if(i>=0){a.splice(i,1);res(null)}},ms)});
   const fire=(type,v)=>{const a=waits[type];if(a&&a.length){waits[type]=[];a.forEach(r=>r(v))}};
@@ -347,7 +358,8 @@ const LV=(()=>{
   /* Nur Nachrichten vom LearningView-Elternfenster annehmen */
   window.addEventListener('message',e=>{
     let src=false;try{src=e.source===window.parent}catch(x){}
-    if(!src||e.origin!==ORIGIN)return;
+    if(!src||!trusted(e.origin))return;
+    if(!locked){ORIGIN=e.origin;locked=true}
     const d=e.data;
     if(d==='SAVED'){busy=false;fails=0;nAck++;clearTimeout(tmr);fire('saved',true);if(dirty)flush();return}
     if(!d||typeof d!=='object')return;
@@ -431,7 +443,7 @@ const LV=(()=>{
       if(!mode||mode==='student'){try{localStorage.removeItem(KEY)}catch(e){}}
       if(mode==='student'){dirty=true;const p=wait('saved',6000);flush();return p}
       return Promise.resolve(true)},
-    stat:()=>({mode,frame:inFrame,send:nSend,ack:nAck,err:nErr,lastErr,ls:lsOK,fromLS,bytes:raw?new TextEncoder().encode(raw).length:0}),
+    stat:()=>({mode,frame:inFrame,org:locked?ORIGIN:'',ref:refOrg,send:nSend,ack:nAck,err:nErr,lastErr,ls:lsOK,fromLS,bytes:raw?new TextEncoder().encode(raw).length:0}),
     score(v){if(mode!=='student')return;v=Math.max(0,Math.min(1,v));if(Math.abs(v-lastSc)<1e-9)return;lastSc=v;post({result:{score:{scaled:v}}})}
   };
 })();
@@ -1094,7 +1106,7 @@ function lvStatusHTML(){
   if(!t.mode){
     head='nicht verbunden';
     txt=t.frame
-      ? `<b style="color:${O}">Die Seite ist eingebettet, aber LearningView hat sich nicht gemeldet.</b> Der Spielstand wird lokal in diesem Browser gespeichert. Prüft, ob die Aufgabe wirklich in LearningView geöffnet ist.`
+      ? `<b style="color:${O}">Die Seite ist eingebettet, aber LearningView hat sich nicht gemeldet.</b> Umgebende Seite: <code>${esc(t.ref||'unbekannt')}</code>. Der Spielstand wird lokal in diesem Browser gespeichert.`
       : 'Die Seite läuft nicht in LearningView. Der Spielstand wird lokal in diesem Browser gespeichert. Zum Prüfen der Schnittstelle die Aufgabe in LearningView öffnen.';
   }else{
     head=`Modus <code>${esc(t.mode)}</code>`;
@@ -1104,7 +1116,7 @@ function lvStatusHTML(){
       :t.fromLS?`<b style="color:${O}">LearningView hat keinen gespeicherten Stand geliefert</b> – gespielt wird mit der lokalen Sicherung. Löst eine Aufgabe und schaut dann hier nochmals nach.`
       :'Noch keine Übertragung – löst eine Aufgabe und schaut dann hier nochmals nach.';
   }
-  return `<div class="card" style="margin-bottom:12px;padding:12px"><p style="margin:0;font-size:.95rem">🔌 <b>LearningView:</b> ${head}${t.mode&&t.fromLS?' · Spielstand aus der lokalen Sicherung geladen':''}<br>${txt}</p>
+  return `<div class="card" style="margin-bottom:12px;padding:12px"><p style="margin:0;font-size:.95rem">🔌 <b>LearningView:</b> ${head}${t.org?` · <code>${esc(t.org)}</code>`:''}${t.mode&&t.fromLS?' · Spielstand aus der lokalen Sicherung geladen':''}<br>${txt}</p>
     <p class="muted" style="margin:6px 0 0;font-size:.78rem">Version ${VERSION}</p></div>`;
 }
 function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.includes('/')?` (${fmtD(Math.round(b.v*1000)/1000)}${Math.abs(b.v*1000-Math.round(b.v*1000))>1e-9?'…':''})`:''}`).join(' &lt; ');
