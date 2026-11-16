@@ -323,6 +323,7 @@ function setPuzzle(p){
 
 /* ======================= Zustand ======================= */
 const KEY='escape3d-bruchlabor-v3';
+const VERSION='2026-11-16 · LV-2';
 let S=null;
 const fresh=(team,limit,penalty)=>({team:team||'Team Labor',limit,penalty,start:Date.now(),pen:0,end:null,solView:false,doorWrong:0,wrong:0,
   hint:{},f:{},notes:[],inv:[],books:[],sound:true,quality:'high'});
@@ -430,7 +431,7 @@ const LV=(()=>{
       if(!mode||mode==='student'){try{localStorage.removeItem(KEY)}catch(e){}}
       if(mode==='student'){dirty=true;const p=wait('saved',6000);flush();return p}
       return Promise.resolve(true)},
-    stat:()=>({mode,send:nSend,ack:nAck,err:nErr,lastErr,ls:lsOK,fromLS,bytes:raw?new TextEncoder().encode(raw).length:0}),
+    stat:()=>({mode,frame:inFrame,send:nSend,ack:nAck,err:nErr,lastErr,ls:lsOK,fromLS,bytes:raw?new TextEncoder().encode(raw).length:0}),
     score(v){if(mode!=='student')return;v=Math.max(0,Math.min(1,v));if(Math.abs(v-lastSc)<1e-9)return;lastSc=v;post({result:{score:{scaled:v}}})}
   };
 })();
@@ -1086,15 +1087,25 @@ function notesUI(){
 }
 let pinOK=false;
 function lvStatusHTML(){
-  if(!LV.inLV())return '';
   const t=LV.stat();
   const ok=t.ack>0, none=t.send>0&&t.ack===0;
-  const txt=t.mode!=='student'?'Lehrpersonen- bzw. Vorschaumodus – in diesem Modus wird nichts gespeichert.'
-    :ok?`<b style="color:var(--ok)">Speichern über LearningView funktioniert.</b> ${t.ack} von ${t.send} Übertragungen bestätigt${t.err?`, ${t.err} Fehler`:''}.`
-    :none?`<b style="color:#ff9a6b">LearningView bestätigt das Speichern nicht</b> (${t.send} Versuche${t.lastErr?', zuletzt: '+esc(t.lastErr):''}). Der Spielstand liegt nur lokal auf diesem Gerät, und die Klassenübersicht bleibt leer. Dann die Datei als HTML-Aufgabe hochladen statt die Webadresse einzubetten.`
-    :t.fromLS?'<b style="color:#ff9a6b">LearningView hat keinen gespeicherten Stand geliefert</b> – gespielt wird mit der lokalen Sicherung. Löst eine Aufgabe und schaut dann hier nochmals nach.'
-    :'Noch keine Übertragung – löst eine Aufgabe und schaut dann hier nochmals nach.';
-  return `<div class="card" style="margin-bottom:12px;padding:12px"><p style="margin:0;font-size:.95rem">🔌 <b>LearningView:</b> Modus <code>${esc(t.mode)}</code>${t.fromLS?' · Spielstand aus der lokalen Sicherung geladen':''}<br>${txt}</p></div>`;
+  const O='#ff9a6b';
+  let head,txt;
+  if(!t.mode){
+    head='nicht verbunden';
+    txt=t.frame
+      ? `<b style="color:${O}">Die Seite ist eingebettet, aber LearningView hat sich nicht gemeldet.</b> Der Spielstand wird lokal in diesem Browser gespeichert. Prüft, ob die Aufgabe wirklich in LearningView geöffnet ist.`
+      : 'Die Seite läuft nicht in LearningView. Der Spielstand wird lokal in diesem Browser gespeichert. Zum Prüfen der Schnittstelle die Aufgabe in LearningView öffnen.';
+  }else{
+    head=`Modus <code>${esc(t.mode)}</code>`;
+    txt=t.mode!=='student'?'Lehrpersonen- bzw. Vorschaumodus – in diesem Modus wird nichts gespeichert.'
+      :ok?`<b style="color:var(--ok)">Speichern über LearningView funktioniert.</b> ${t.ack} von ${t.send} Übertragungen bestätigt${t.err?`, ${t.err} Fehler`:''}.`
+      :none?`<b style="color:${O}">LearningView bestätigt das Speichern nicht</b> (${t.send} Versuche${t.lastErr?', zuletzt: '+esc(t.lastErr):''}). Der Spielstand liegt nur lokal auf diesem Gerät, und die Klassenübersicht bleibt leer. Dann die Datei als HTML-Aufgabe hochladen statt die Webadresse einzubetten.`
+      :t.fromLS?`<b style="color:${O}">LearningView hat keinen gespeicherten Stand geliefert</b> – gespielt wird mit der lokalen Sicherung. Löst eine Aufgabe und schaut dann hier nochmals nach.`
+      :'Noch keine Übertragung – löst eine Aufgabe und schaut dann hier nochmals nach.';
+  }
+  return `<div class="card" style="margin-bottom:12px;padding:12px"><p style="margin:0;font-size:.95rem">🔌 <b>LearningView:</b> ${head}${t.mode&&t.fromLS?' · Spielstand aus der lokalen Sicherung geladen':''}<br>${txt}</p>
+    <p class="muted" style="margin:6px 0 0;font-size:.78rem">Version ${VERSION}</p></div>`;
 }
 function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.includes('/')?` (${fmtD(Math.round(b.v*1000)/1000)}${Math.abs(b.v*1000-Math.round(b.v*1000))>1e-9?'…':''})`:''}`).join(' &lt; ');
   const gl=P.glasses.map((g,i)=>i===P.unused?null:(g.t===`${g.v}/12`?g.t:`${g.t} (= ${g.v}/12)`)).filter(Boolean).join(' + ');const u=P.glasses[P.unused];
