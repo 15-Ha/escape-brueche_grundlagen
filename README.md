@@ -9,6 +9,23 @@
 - Spielzeit 30–80 Minuten (Standard 40), Strafzeiten für Tipps und Fehleingaben einstellbar.
 - Lehrpersonen-Bereich (🎓) mit PIN – Lösungsweg für das Spiel auf dem jeweiligen Gerät.
 
+## LearningView
+Die Anwendung unterstützt die [Embed-API von LearningView](https://learningview.org/embed-api.php). Wird sie in LearningView eingebettet, erkennt sie den Modus selbst:
+
+| Modus | Verhalten |
+|---|---|
+| `student` | Spielstand wird bei LearningView gespeichert (statt lokal) und beim Öffnen wiederhergestellt. Das Ergebnis wird als Prozentwert gemeldet: gelöste Rätsel von 7, nach dem Ausbrechen 100 %. |
+| `studentReview` | Einzelansicht für die Lehrperson: Kennzahlen, Lösungsweg des jeweiligen Spiels und begehbarer Raum – **nur lesen**, Eingaben verändern den Spielstand nicht. |
+| `class` | Klassenübersicht mit Fortschritt, Zeit, Tipps, Fehlversuchen und Status aller Lernenden (nach Freigabe der Klassendaten). |
+| `preview` | Raum spielbar, ohne zu speichern. |
+
+Ausserhalb von LearningView wird der Spielstand wie bisher im Browser (`localStorage`) gesichert.
+
+Hinweise:
+- Speichervorgänge laufen nacheinander mit mindestens 2 Sekunden Abstand und warten auf die Bestätigung; Fehler werden den Lernenden angezeigt.
+- Klassendaten werden nur nach Freigabe durch die Lehrperson übertragen; während der Freigabe zeigt die Anwendung einen Wartehinweis.
+- Im Lehrpersonen-Modus entfällt die PIN, weil LearningView die Ansicht bereits schützt.
+
 ## Dateien
 - `index.html` – spielbereite Version (Three.js eingebettet)
 - `quelle/escape-quelle.html` – lesbarer Quelltext (lädt Three.js r160 per Import-Map)

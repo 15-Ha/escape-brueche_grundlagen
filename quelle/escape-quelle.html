@@ -326,13 +326,114 @@ const KEY='escape3d-bruchlabor-v3';
 let S=null;
 const fresh=(team,limit,penalty)=>({team:team||'Team Labor',limit,penalty,start:Date.now(),pen:0,end:null,solView:false,doorWrong:0,wrong:0,
   hint:{},f:{},notes:[],inv:[],books:[],sound:true,quality:'high'});
-const FLAGKEY='escape3d-bruchlabor-solview';
-const flagSeen=()=>{try{return localStorage.getItem(FLAGKEY)==='1'}catch(e){return false}};
+
+/* ======================= LearningView-Schnittstelle =======================
+   Embed-API: https://learningview.org/embed-api.php
+   Modi: student (spielen + speichern) · studentReview (Einzellösung, nur lesen)
+         class (Klassenübersicht) · preview (ohne Daten) · null (ausserhalb LearningView) */
+const LV=(()=>{
+  const ORIGIN='https://learningview.org',MAXB=1048576;
+  let inFrame=false;try{inFrame=!!window.parent&&window.parent!==window}catch(e){inFrame=true}
+  let mode=null,raw='',lastSc=-1,fails=0,warned='',started=false,lateCb=null;
+  let dirty=false,busy=false,lastSend=0,tmr=null;
+  const waits={};
+  const post=m=>{try{window.parent.postMessage(m,ORIGIN)}catch(e){}};
+  const wait=(type,ms)=>new Promise(res=>{const a=waits[type]=waits[type]||[];a.push(res);
+    if(ms)setTimeout(()=>{const i=a.indexOf(res);if(i>=0){a.splice(i,1);res(null)}},ms)});
+  const fire=(type,v)=>{const a=waits[type];if(a&&a.length){waits[type]=[];a.forEach(r=>r(v))}};
+  const warn=t=>{if(warned===t)return;warned=t;if(typeof toast==='function')toast('⚠ '+t,6000)};
+  /* Nur Nachrichten vom LearningView-Elternfenster annehmen */
+  window.addEventListener('message',e=>{
+    let src=false;try{src=e.source===window.parent}catch(x){}
+    if(!src||e.origin!==ORIGIN)return;
+    const d=e.data;
+    if(d==='SAVED'){busy=false;fails=0;clearTimeout(tmr);fire('saved',true);if(dirty)flush();return}
+    if(!d||typeof d!=='object')return;
+    if(d.type==='saveAnswerDataError'){
+      busy=false;clearTimeout(tmr);fails++;
+      if(d.error==='ANSWER_DATA_TOO_LARGE'){dirty=false;warn('Der Spielstand ist zu gross und wurde nicht gespeichert.')}
+      else if(fails>=3)warn('Der Spielstand konnte nicht gespeichert werden. Notiert das Ergebnis zur Sicherheit.');
+      else{dirty=true;tmr=setTimeout(flush,2000)}
+      fire('saved',false);return}
+    fire(d.type,d);
+  });
+  /* Speichern: nur eine Anfrage gleichzeitig, mindestens 2 s Abstand */
+  function flush(){
+    if(mode!=='student'||busy||!dirty)return;
+    const w=2000-(Date.now()-lastSend);
+    if(w>0){clearTimeout(tmr);tmr=setTimeout(flush,w);return}
+    if(new TextEncoder().encode(raw).length>MAXB){dirty=false;warn('Der Spielstand ist zu gross und wurde nicht gespeichert.');return}
+    dirty=false;busy=true;lastSend=Date.now();post({type:'saveAnswerData',data:raw});
+    clearTimeout(tmr);tmr=setTimeout(()=>{busy=false;fails++;
+      if(fails<3){dirty=true;flush()}else warn('Der Spielstand konnte nicht gespeichert werden. Notiert das Ergebnis zur Sicherheit.')},12000);
+  }
+  /* Letzter Versuch, wenn die Aufgabe geschlossen oder in den Hintergrund gelegt wird */
+  const bail=()=>{if(mode==='student'&&dirty&&!busy&&new TextEncoder().encode(raw).length<=MAXB){dirty=false;busy=true;lastSend=Date.now();post({type:'saveAnswerData',data:raw})}};
+  window.addEventListener('pagehide',bail);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')bail()});
+  async function ready(){
+    post({type:'setDialogSize',size:'max'});
+    if(mode==='student'||mode==='studentReview'){
+      const p=wait('sendAnswerData',10000);post({type:'getAnswerData'});const r=await p;
+      raw=(r&&typeof r.data==='string')?r.data:'';
+    }
+    return mode;
+  }
+  async function init(){
+    const m=(window.learningView&&window.learningView.mode)||null;
+    if(m){mode=m;return ready()}
+    if(inFrame){
+      const p=wait('sendEmbedContext',6000);post({type:'getEmbedContext'});
+      const r=await p;
+      if(r&&r.mode){mode=r.mode;return ready()}
+      /* Sehr späte Antwort trotzdem annehmen (langsames Elternfenster) */
+      wait('sendEmbedContext',0).then(async r2=>{
+        if(!r2||!r2.mode||mode)return;
+        mode=r2.mode;
+        if(started){post({type:'setDialogSize',size:'max'});if(mode==='student'&&raw){dirty=true;flush()}return}
+        await ready();if(lateCb)lateCb(mode);
+      });
+    }
+    try{raw=localStorage.getItem(KEY)||''}catch(e){raw=''}
+    return null;
+  }
+  /* Klassenstände. Während der Freigabe kommt classDataConsentPending – dann ohne Zeitdruck warten. */
+  function classData(){
+    return new Promise(res=>{
+      let done=false,t=null;
+      const fin=v=>{if(done)return;done=true;clearTimeout(t);res(v||{error:'CLASS_ANSWER_DATA_UNAVAILABLE'})};
+      const arm=ms=>{clearTimeout(t);t=setTimeout(()=>fin({error:'TIMEOUT'}),ms)};
+      wait('classDataConsentPending',0).then(()=>{if(!done){fire('pendingUI',true);arm(300000)}});
+      wait('sendClassAnswerData',0).then(fin);
+      arm(20000);post({type:'getClassAnswerData'});
+    });
+  }
+  return{
+    init,classData,
+    onLate:fn=>{lateCb=fn},
+    begin(){started=true},
+    mode:()=>mode,
+    inLV:()=>!!mode,
+    ro:()=>mode==='studentReview',
+    teacher:()=>mode==='class'||mode==='studentReview',
+    onPending:fn=>wait('pendingUI',0).then(fn),
+    raw:()=>raw,
+    write(s){raw=s;if(mode==='student'){dirty=true;flush()}else if(!mode){try{localStorage.setItem(KEY,s)}catch(e){}}},
+    clear(){raw='';
+      if(mode==='student'){dirty=true;const p=wait('saved',6000);flush();return p}
+      if(!mode){try{localStorage.removeItem(KEY)}catch(e){}}
+      return Promise.resolve(true)},
+    score(v){if(mode!=='student')return;v=Math.max(0,Math.min(1,v));if(Math.abs(v-lastSc)<1e-9)return;lastSc=v;post({result:{score:{scaled:v}}})}
+  };
+})();
+
 const WP=()=>(S&&S.wpen!=null?S.wpen:30);
 const WPT=()=>{const t=WP(),m=Math.floor(t/60),r=t%60;return '+'+(m?m+' Min.':'')+(m&&r?' ':'')+(r?r+' s':'')};
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(typeof updateProgress==='function')updateProgress()};
-const load=()=>{try{const v=JSON.parse(localStorage.getItem(KEY));return v&&v.start&&v.f&&typeof v.seed==='number'&&Array.isArray(v.books)&&v.books.length>=4&&v.books.length<=6&&Array.isArray(v.inv)&&Array.isArray(v.notes)&&v.books.slice().sort((a,b)=>a-b).every((x,i)=>x===i)?(v.hint=v.hint||{},v):null}catch(e){return null}};
-const elapsed=()=>Math.floor(((S.end||Date.now())-S.start)/1000)+S.pen;
+const save=()=>{if(S){if(!S.ro)LV.write(JSON.stringify(S));LV.score(S.end?1:solvedCount()/7)}
+  if(typeof updateProgress==='function')updateProgress()};
+const valid=v=>v&&v.start&&v.f&&typeof v.seed==='number'&&Array.isArray(v.books)&&v.books.length>=4&&v.books.length<=6&&Array.isArray(v.inv)&&Array.isArray(v.notes)&&v.books.slice().sort((a,b)=>a-b).every((x,i)=>x===i)?(v.hint=v.hint||{},v):null;
+const load=()=>{try{const r=LV.raw();return r?valid(JSON.parse(r)):null}catch(e){return null}};
+const elapsed=()=>Math.floor(((S.end||S.now||Date.now())-S.start)/1000)+S.pen;
 function addNote(k){if(!S.notes.includes(k)){S.notes.push(k);save()}}
 function addItem(i){if(!S.inv.includes(i)){S.inv.push(i);save();renderHUD()}}
 
@@ -956,7 +1057,9 @@ function finishUI(){
    <div class="stats"><div class="stat"><b>${mmss(e)}</b>Zeit inkl. Strafen</div><div class="stat"><b>${hints}</b>Tipps</div><div class="stat"><b>${S.wrong+S.doorWrong}</b>Fehlversuche</div></div>
    ${S.solView?'<p style="margin-top:12px"><span class="flag">⚠ Lösungen wurden eingesehen</span></p>':''}
    <p class="muted" style="font-size:.8rem">${d.toLocaleDateString('de-CH')} ${d.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}</p></div>
-   <p class="muted" style="text-align:center">Zeigt dieses Zertifikat eurer Lehrperson.</p>`,[{label:'Neues Spiel',fn:resetGame},{label:'Im Raum bleiben',cls:'primary'}]);
+   <p class="muted" style="text-align:center">${S.ro?'Nur-Lese-Ansicht des gespeicherten Spiels.':(LV.inLV()?'Das Ergebnis wurde an LearningView übermittelt.':'Zeigt dieses Zertifikat eurer Lehrperson.')}</p>`,
+   S.ro?[{label:'Zurück zur Übersicht',fn:()=>{closePanel();$('#hud').style.display='none';reviewScreen()}},{label:'Im Raum bleiben',cls:'primary'}]
+       :[{label:'Neues Spiel',fn:resetGame},{label:'Im Raum bleiben',cls:'primary'}]);
 }
 
 /* ---------- Tipps, Notizen, Lehrperson ---------- */
@@ -988,13 +1091,15 @@ function solutionHTML(){const ob=S?S:{};const bs=P.books.map(b=>`${b.t}${b.t.inc
     <li><b>Tür:</b> Farbreihenfolge ${P.order.join('–')} → <b>${P.code}</b></li></ol>
     <p class="muted">Diese Rätselzahlen gelten nur für das Spiel auf diesem Gerät. Ablenkungen ohne Funktion: Pizzakarton, Wandtafel (Merkhilfe), Poster (linke Wand), Fenster.</p>`}
 function teacherUI(){
-  const show=()=>{S.solView=true;save();renderHUD();openPanel('🎓 Lösungsweg',solutionHTML(),[{label:'Schliessen',cls:'primary'}])};
+  const show=()=>{if(!S.ro){S.solView=true;save();renderHUD()}openPanel('🎓 Lösungsweg',solutionHTML(),[{label:'Schliessen',cls:'primary'}])};
+  if(LV.teacher())return show();   // In LearningView ist die Lehrpersonen-Ansicht bereits geschützt
   const ask=()=>openPanel('🎓 Bereich für Lehrpersonen',`<p>Bitte PIN eingeben.</p><p class="muted" style="font-size:.9rem">Beim Öffnen der Lösungen erscheint für dieses Spiel die Markierung <span class="flag">⚠ Lösungen eingesehen</span> – im Raum und auf dem Zertifikat.</p><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:12px;border-radius:10px;font-size:1.3rem;width:160px;letter-spacing:.3em">`,
     [{label:'Abbrechen'},{label:'Öffnen',cls:'danger',keep:true,fn:tryPin}],b=>{const i=b.querySelector('#pin');setTimeout(()=>i.focus(),50);i.addEventListener('keydown',e=>{if(e.key==='Enter')tryPin()})});
   function tryPin(){const i=$('#pin');if(i&&i.value===LP_PIN){pinOK=true;closePanel();show()}else if(i){i.value='';i.placeholder='falsch';sfx.bad();$('.panel').classList.add('shake');setTimeout(()=>$('.panel')&&$('.panel').classList.remove('shake'),400)}}
   pinOK?show():ask();
 }
-function resetGame(){openPanel('Neues Spiel?','<p>Der aktuelle Spielstand auf diesem Gerät wird gelöscht.</p>',[{label:'Abbrechen'},{label:'Neues Spiel',cls:'danger',fn:()=>{try{localStorage.removeItem(KEY)}catch(e){}location.reload()}}])}
+function resetGame(){openPanel('Neues Spiel?',`<p>Der aktuelle Spielstand ${LV.inLV()?'dieser Aufgabe':'auf diesem Gerät'} wird gelöscht.</p>`,
+  [{label:'Abbrechen'},{label:'Neues Spiel',cls:'danger',fn:()=>{toast('Wird zurückgesetzt …',8000);LV.clear().then(()=>location.reload())}}])}
 
 /* ---------- HUD & Timer ---------- */
 function timerTxt(){const e=elapsed();if(!S.limit)return['⏱ '+mmss(e),false];const r=S.limit*60-e;return r>=0?['⏳ '+mmss(r),false]:['⌛ +'+mmss(-r),true]}
@@ -1002,9 +1107,9 @@ function renderHUD(){
   if(!S){$('#hud').style.display='none';return}
   const[t,late]=timerTxt();$('#hud').style.display='flex';
   $('#hud').innerHTML=`<span class="team">${esc(S.team)}</span><span id="timer" class="timer${late?' late':''}">${t}</span>
-   <div class="inv">${S.inv.map(i=>`<span class="item">${i}</span>`).join('')}</div>${S.solView?'<span class="flag">⚠ Lösungen eingesehen</span>':''}
-   <div class="tools">${S.end?'<button class="btn small" data-t="cert" title="Zertifikat">🏆</button>':''}<button class="btn small" data-t="sound" title="Ton ein/aus">${S.sound===false?'🔇':'🔊'}</button><button class="btn small" data-t="notes">📜</button><button class="btn small" data-t="hint">💡 Tipp</button><button class="btn small" data-t="teacher" title="Lehrperson">🎓</button><button class="btn small" data-t="reset" title="Neues Spiel">↺</button></div>`;
-  $('#hud').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(uiOpen&&b.dataset.t!=='reset'&&b.dataset.t!=='sound')closePanel();({notes:notesUI,hint:hintUI,teacher:teacherUI,reset:resetGame,cert:finishUI,sound:()=>{S.sound=S.sound===false;save();renderHUD()}})[b.dataset.t]()});
+   <div class="inv">${S.inv.map(i=>`<span class="item">${i}</span>`).join('')}</div>${S.ro?'<span class="flag">👁 Nur-Lese-Ansicht</span>':''}${S.solView?'<span class="flag">⚠ Lösungen eingesehen</span>':''}
+   <div class="tools">${S.end?'<button class="btn small" data-t="cert" title="Zertifikat">🏆</button>':''}<button class="btn small" data-t="sound" title="Ton ein/aus">${S.sound===false?'🔇':'🔊'}</button><button class="btn small" data-t="notes">📜</button><button class="btn small" data-t="hint">💡 Tipp</button><button class="btn small" data-t="teacher" title="Lehrperson">🎓</button>${S.ro?'<button class="btn small" data-t="back" title="Zurück zur Übersicht">⬅</button>':'<button class="btn small" data-t="reset" title="Neues Spiel">↺</button>'}</div>`;
+  $('#hud').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(uiOpen&&b.dataset.t!=='reset'&&b.dataset.t!=='sound')closePanel();({notes:notesUI,hint:hintUI,teacher:teacherUI,reset:resetGame,cert:finishUI,back:()=>{closePanel();$('#hud').style.display='none';reviewScreen()},sound:()=>{S.sound=S.sound===false;save();renderHUD()}})[b.dataset.t]()});
 }
 setInterval(()=>{if(S&&!S.end){const el=$('#timer');if(el){const[t,l]=timerTxt();el.textContent=t;el.classList.toggle('late',l)}}},1000);
 
@@ -1020,6 +1125,78 @@ function applyState(){
   if(S.f.piano)applyPiano();
   updateProgress();
 }
+/* ---------- Ansichten für Lehrpersonen in LearningView ---------- */
+const PUZ=[['books','Bücher'],['clock','Uhr'],['flasks','Gläser'],['mirror','Spiegel'],['laptop','Laptop'],['piano','Klavier'],['mosaic','Bruchbild']];
+const LVCSS=`<style>.lvt{width:100%;border-collapse:collapse;font-size:.95rem}
+.lvt th,.lvt td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.lvt th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.lvt td.n,.lvt th.n{text-align:right;font-variant-numeric:tabular-nums}
+.lvt tr.off td{color:var(--muted)}
+.bar{height:8px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:56px;margin-top:4px}
+.bar>i{display:block;height:100%;background:var(--acc);border-radius:5px}
+.bar>i.full{background:var(--ok)}
+.lvwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}</style>`;
+function statOf(str){
+  if(!str)return null;
+  let v=null;try{v=JSON.parse(str)}catch(e){return null}
+  if(!v||!v.f||!v.start)return null;
+  const sec=Math.floor(((v.end||Date.now())-v.start)/1000)+(v.pen||0);
+  return{team:v.team||'',level:v.level==='erw'?'Erweitert':'Grundlegend',done:PUZ.filter(([k])=>v.f[k]).length,
+    sec,end:!!v.end,hints:Object.values(v.hint||{}).reduce((a,b)=>a+b,0),wrong:(v.wrong||0)+(v.doorWrong||0),
+    solView:!!v.solView,inTime:!v.limit||sec<=v.limit*60,st:v};
+}
+function lvShell(title,sub,inner){
+  $('#start').style.display='flex';uiOpen=true;
+  $('#start').innerHTML=`${LVCSS}<div class="in"><div class="hero"><img src="${LOGO_FN}" alt="Logo" style="height:46px;background:#fff;padding:9px 16px;border-radius:12px;display:block;margin:0 auto 8px"><h1 style="font-size:1.6rem">${title}</h1><p class="muted">${sub}</p></div>${inner}</div>`;
+}
+const LVERR={CLASS_DATA_CONSENT_DENIED:'Die Freigabe der Klassendaten wurde abgelehnt. Öffnet die Übersicht erneut und erlaubt die Freigabe, um den Fortschritt zu sehen.',
+  CLASS_ANSWER_DATA_UNAVAILABLE:'LearningView konnte die Klassenstände nicht liefern.',
+  CLASS_STUDENTS_UNAVAILABLE:'LearningView konnte die Kursliste nicht liefern.',
+  TIMEOUT:'Keine Antwort von LearningView erhalten.'};
+async function classDash(){
+  lvShell('Klassenübersicht','Das Labor von Prof. Quotientia · Fortschritt der Lernenden',
+    '<div class="card" id="lvbox"><p>Die Klassenstände werden geladen …</p></div>');
+  LV.onPending(()=>{const b=$('#lvbox');if(b)b.innerHTML='<p>⏳ Wartet auf die Freigabe der Klassendaten in LearningView …</p><p class="muted" style="font-size:.9rem;margin-bottom:0">Ohne Freigabe werden keine Namen und keine Lösungen übertragen.</p>'});
+  const r=await LV.classData();
+  const box=$('#lvbox');if(!box)return;
+  if(r.error&&!Array.isArray(r.data)){box.innerHTML=`<p>${esc(LVERR[r.error]||('Fehler: '+r.error))}</p>`+'<button class="btn" id="lvre">↺ Erneut versuchen</button>';$('#lvre').onclick=classDash;return}
+  const rows=(Array.isArray(r.data)?r.data:[]).map(e=>({
+    name:[e.name,e.surname].filter(Boolean).join(' ').trim()||('ID '+(e.studentId!=null?e.studentId:'?')),s:statOf(e.data)}));
+  rows.sort((a,b)=>(b.s?b.s.done:-1)-(a.s?a.s.done:-1)||((a.s?a.s.sec:1e9)-(b.s?b.s.sec:1e9))||a.name.localeCompare(b.name,'de-CH'));
+  const act=rows.filter(x=>x.s),fin=act.filter(x=>x.s.end);
+  box.innerHTML=`<div class="stats" style="margin-bottom:12px">
+    <div class="stat"><b>${rows.length}</b>Lernende</div><div class="stat"><b>${act.length}</b>gestartet</div>
+    <div class="stat"><b>${fin.length}</b>ausgebrochen</div>
+    <div class="stat"><b>${act.length?(act.reduce((a,x)=>a+x.s.done,0)/act.length).toFixed(1):'–'}</b>Ø Rätsel von 7</div></div>
+    ${rows.length?`<div class="lvwrap"><table class="lvt"><thead><tr><th>Name</th><th>Team</th><th>Stufe</th><th>Rätsel</th><th class="n">Zeit</th><th class="n">Tipps</th><th class="n">Fehler</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(x=>{const s=x.s;if(!s)return `<tr class="off"><td>${esc(x.name)}</td><td colspan="7">noch nicht gestartet</td></tr>`;
+      return `<tr><td>${esc(x.name)}</td><td class="muted">${esc(s.team)}</td><td>${s.level}</td>
+      <td>${s.done} / 7<div class="bar"><i class="${s.done===7?'full':''}" style="width:${Math.round(s.done/7*100)}%"></i></div></td>
+      <td class="n">${mmss(s.sec)}</td><td class="n">${s.hints}</td><td class="n">${s.wrong}</td>
+      <td>${s.end?`<b style="color:${s.inTime?'var(--ok)':'var(--muted)'}">✓ ausgebrochen${s.inTime?'':' (über der Zeit)'}</b>`:'läuft'}${s.solView?' <span class="flag">⚠ Lösungen</span>':''}</td></tr>`}).join('')}
+    </tbody></table></div>`:'<p class="muted">Für diesen Kurs liegen noch keine Einträge vor.</p>'}
+    <p class="muted" style="font-size:.85rem">Zeit inkl. Strafzeiten. «⚠ Lösungen» heisst: In diesem Spiel wurde der Lösungsweg geöffnet. Einzelne Lösungen seht ihr in LearningView direkt bei der Person.</p>
+    <div class="form"><button class="btn" id="lvre">↺ Aktualisieren</button><button class="btn" id="lvtry">🧪 Raum selbst ausprobieren</button></div>`;
+  $('#lvre').onclick=classDash;
+  $('#lvtry').onclick=()=>{ac();startScreen()};
+}
+function reviewScreen(){
+  const v=load();
+  if(!v){lvShell('Einzelansicht','Das Labor von Prof. Quotientia','<div class="card"><p>Diese Person hat den Escape-Room noch nicht gestartet – es ist kein Spielstand gespeichert.</p></div>');return}
+  const s=statOf(JSON.stringify(v));
+  lvShell('Einzelansicht','Das Labor von Prof. Quotientia · nur lesen',
+   `<div class="card"><div class="stats"><div class="stat"><b>${s.done} / 7</b>Rätsel gelöst</div><div class="stat"><b>${mmss(s.sec)}</b>Zeit inkl. Strafen</div>
+     <div class="stat"><b>${s.hints}</b>Tipps</div><div class="stat"><b>${s.wrong}</b>Fehlversuche</div></div>
+    <p>Team <b>${esc(s.team)}</b> · Stufe ${s.level} · ${s.end?`<b style="color:var(--ok)">ausgebrochen</b>${s.inTime?' innerhalb der Zeit':' (nach Ablauf der Zeit)'}`:'noch unterwegs'}${s.solView?' · <span class="flag">⚠ Lösungen eingesehen</span>':''}</p>
+    <p class="muted" style="font-size:.95rem">Gelöst: ${PUZ.filter(([k])=>v.f[k]).map(([,t])=>t).join(', ')||'noch nichts'}${PUZ.some(([k])=>!v.f[k])?`<br>Offen: ${PUZ.filter(([k])=>!v.f[k]).map(([,t])=>t).join(', ')}`:''}</p>
+    <div class="form"><button class="btn primary" id="lvroom">👁 Raum dieser Person ansehen</button><button class="btn" id="lvsol">🎓 Lösungsweg dieses Spiels</button></div>
+    <p class="muted" style="font-size:.85rem;margin-bottom:0">Nur-Lese-Ansicht: Eingaben im Raum verändern den Spielstand der Lernenden nicht.</p></div>`);
+  $('#lvsol').onclick=()=>{setPuzzle(genPuzzle(v.seed,v.level||'erw'));openPanel('🎓 Lösungsweg',solutionHTML(),[{label:'Schliessen',cls:'primary'}])};
+  $('#lvroom').onclick=()=>{ac();setPuzzle(genPuzzle(v.seed,v.level||'erw'));
+    if(v.books.length!==P.books.length)v.books=P.bookStart.slice();
+    S=v;S.ro=true;S.now=Date.now();enter(false);toast('👁 Nur-Lese-Ansicht – Eingaben werden nicht gespeichert.',6000)};
+}
+
 function startScreen(){
   const saved=load();
   $('#start').style.display='flex';
@@ -1037,11 +1214,11 @@ function startScreen(){
    <span>💻 Computer</span><span>W A S D oder Pfeiltasten = gehen · Maus ziehen = umschauen · Klick = untersuchen</span></div>
    <p class="muted" style="font-size:.85rem;margin-bottom:0">Ihr müsst nah genug an einem Gegenstand stehen, um ihn zu untersuchen. Gefundene Notizen findet ihr jederzeit unter 📜.</p></div></div>`;
   const go=()=>{ac();const seed=(Math.random()*2147483647)|0,lv=$('#f-level').value;setPuzzle(genPuzzle(seed,lv));S=fresh($('#f-team').value.trim(),+$('#f-limit').value,+$('#f-pen').value);S.seed=seed;S.level=lv;S.wpen=+$('#f-wpen').value;S.books=P.bookStart.slice();S.quality=$('#f-q').value;save();enter(true)};
-  $('#go').onclick=()=>{if(!saved)return go();uiOpen=true;$('#start').style.display='none';openPanel('Neues Spiel starten?',`<p>Auf diesem Gerät gibt es einen Spielstand von <b>${esc(saved.team)}</b>. Er wird gelöscht.</p>`,[{label:'Abbrechen',fn:()=>{uiOpen=true;$('#start').style.display='flex'}},{label:'Neues Spiel',cls:'danger',fn:go}]);$('#ov [data-close]').onclick=()=>{closePanel();uiOpen=true;$('#start').style.display='flex'}};
+  $('#go').onclick=()=>{if(!saved)return go();uiOpen=true;$('#start').style.display='none';openPanel('Neues Spiel starten?',`<p>Es gibt einen gespeicherten Spielstand von <b>${esc(saved.team)}</b>. Er wird gelöscht.</p>`,[{label:'Abbrechen',fn:()=>{uiOpen=true;$('#start').style.display='flex'}},{label:'Neues Spiel',cls:'danger',fn:go}]);$('#ov [data-close]').onclick=()=>{closePanel();uiOpen=true;$('#start').style.display='flex'}};
   const r=$('#resume');if(r)r.onclick=()=>{ac();setPuzzle(genPuzzle(saved.seed,saved.level||'erw'));if(saved.books.length!==P.books.length)saved.books=P.bookStart.slice();S=saved;enter(false)};
 }
 function enter(intro){
-  $('#start').style.display='none';setupQuality(S.quality!=='low');if(VH()>VW())pitch=-.18;applyState();renderHUD();uiOpen=false;
+  LV.begin();$('#start').style.display='none';setupQuality(S.quality!=='low');if(VH()>VW())pitch=-.18;applyState();renderHUD();uiOpen=false;
   const help=$('#help');help.innerHTML=isTouch?'Links ziehen = gehen · rechts ziehen = schauen · antippen = untersuchen':'WASD = gehen · Maus ziehen = schauen · Klick = untersuchen';help.style.display='block';setTimeout(()=>help.style.display='none',20000);
   if(intro)showNote('letter');
   if(S.end)setTimeout(finishUI,300);
@@ -1080,10 +1257,14 @@ function loop(){
 
 /* ======================= Init ======================= */
 (async()=>{
+  const lvReady=LV.init();   // läuft parallel zum Aufbau des Raums
   try{await Promise.race([document.fonts.load('64px "Caveat"').then(()=>document.fonts.load('bold 40px "Space Grotesk"')),new Promise(r=>setTimeout(r,2500))])}catch(e){}
   S=null;
   buildRoom();buildDoor();buildBoard();buildDesk();buildPlant();buildRug();buildShelf();buildLeftWall();buildRightWall();buildLabTable();buildRobot();buildPoster();buildPiano();buildLogoSign();buildStyle();applyEnv();
-  $('#loading').remove();loop();startScreen();
+  $('#loading').remove();loop();
+  const route=m=>{if(m==='class')classDash();else if(m==='studentReview')reviewScreen();else startScreen()};
+  LV.onLate(route);
+  route(await lvReady);
 })().catch(err=>{$('#loading').innerHTML='Fehler beim Laden des 3D-Raums: '+esc(err.message)+'<br>Bitte Seite neu laden.'});
 </script>
 </body>
